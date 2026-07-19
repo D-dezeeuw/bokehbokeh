@@ -21,7 +21,9 @@ sliders and one-tap presets for maximum or minimum bokeh.
    shutter speed and warns about handheld blur, ND-filter territory and
    high-ISO noise. While a preset is active, ISO re-solves automatically as
    you scrub through the day.
-5. **Light check** — snap or pick a photo (analyzed entirely on-device,
+5. **Light check** — an analog light-meter dial (candle → blazing sun)
+   whose needle follows the active scene EV: the sun/weather model by
+   default, or your photo. Snap or pick one (analyzed entirely on-device,
    never uploaded). EXIF tells which exposure the camera applied; the
    pixels tell how bright the frame actually rendered — combining both
    gives the true scene EV (a dark-rendered dim room reads darker than

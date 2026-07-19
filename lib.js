@@ -454,6 +454,12 @@ export const classifyScene = (m, ev = null) => {
   return m.mean < 95 ? 4 : 3;
 };
 
+/**
+ * Needle angle (degrees, 0 = straight up) for the analog light meter:
+ * EV −2 (candle) at −80° through EV 18 (blazing sun) at +80°.
+ */
+export const meterAngle = (ev) => Math.max(-80, Math.min(80, -80 + (ev + 2) * 8));
+
 // === Time helpers ===
 
 /** Break a UTC timestamp into wall-clock parts at a UTC offset (seconds). */
