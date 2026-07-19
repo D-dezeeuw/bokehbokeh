@@ -165,16 +165,35 @@ computed('sunTimes', ['wx.data', 'dayIndex'], (s) => {
   return { rise, set, risePct: toPct(rise), setPct: toPct(set) };
 });
 
-// === Presets ===
+// === Presets & auto-solve ===
 
 const PRESET_APERTURE = { bokeh: 1.8, deep: 11 };
+
+/** Scene EV read straight from sun/cond — `exposure` may not have
+ *  re-derived yet when a watch fires in the same tick pass. */
+const currentEV = () =>
+  sceneEV(appState.sun?.elev ?? 30, appState.cond?.penalty ?? 0);
 
 const applyPreset = (kind) => {
   const N = PRESET_APERTURE[kind];
   if (!N) return;
-  const ev = appState.exposure?.ev ?? 12;
   setValue('apertureIdx', F_STOPS.indexOf(N));
-  setValue('isoIdx', ISOS.indexOf(pickIso(ev, N)));
+  setValue('isoIdx', ISOS.indexOf(pickIso(currentEV(), N)));
+};
+
+/**
+ * Re-solve settings for the current light. In a preset, the preset
+ * owns aperture + ISO; in custom mode the aperture is the user's
+ * creative choice, so only ISO is solved (auto-ISO, like a camera).
+ */
+const autoSolve = () => {
+  const kind = appState.preset;
+  if (kind === 'bokeh' || kind === 'deep') {
+    applyPreset(kind);
+    return;
+  }
+  const N = F_STOPS[appState.apertureIdx ?? 3] ?? 1.8;
+  setValue('isoIdx', ISOS.indexOf(pickIso(currentEV(), N)));
 };
 
 // === Actions ===
@@ -243,7 +262,13 @@ defineFn('setNow', () => {
   setValue('timeMinutes', nowMinutes(offsetSec()));
 });
 
-defineFn('setCond', (_el, _state, _delta, value) => setValue('wxOverride', value));
+defineFn('setCond', (_el, _state, _delta, value) => {
+  setValue('wxOverride', value);
+  // Commit so cond (and sun) reflect the new pick, then re-solve the
+  // settings for the light under these conditions.
+  spektrum.tick();
+  autoSolve();
+});
 
 defineFn('presetBokeh', () => { setValue('preset', 'bokeh'); applyPreset('bokeh'); });
 defineFn('presetDeep', () => { setValue('preset', 'deep'); applyPreset('deep'); });
@@ -282,11 +307,28 @@ watch(['sun', 'cond'], () => {
   if (p === 'bokeh' || p === 'deep') applyPreset(p);
 });
 
+// Fresh forecast in (page load with a known location, geolocation
+// resolving, or a new city searched) → solve settings for that light.
+watch(['wx.data'], () => {
+  if (appState.wx?.data) autoSolve();
+});
+
 // Aperture drives the bokeh blur everywhere (preview strip + page backdrop).
 const paintBokeh = () => {
   document.documentElement.style.setProperty('--bk', String((appState.bokeh?.score ?? 60) / 100));
 };
 watch(['bokeh'], paintBokeh);
+
+// ISO drives the preview's exposure look: higher ISO lifts brightness
+// and fades in sensor grain.
+const paintIso = () => {
+  const el = spektrum.refs.stage;
+  if (!el) return;
+  const t = (appState.isoIdx ?? 0) / (ISOS.length - 1);
+  el.style.setProperty('--bright', (1 + t * 0.5).toFixed(3));
+  el.style.setProperty('--noise', (t * t * 0.55).toFixed(3));
+};
+watch(['isoIdx'], paintIso);
 
 // Sunrise/sunset shift the day-gradient on the time slider track.
 const paintSunTrack = () => {
@@ -304,6 +346,7 @@ bindDOM();
 run();
 paintBokeh();
 paintSunTrack();
+paintIso();
 
 // First visit: ask the browser for a location. Return visits reuse the
 // saved place (the 📍 button re-asks at any time).
