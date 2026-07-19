@@ -490,6 +490,57 @@ input[type="range"]::-moz-range-thumb {
 .scene-sec { display: flex; flex-direction: column; gap: 12px; }
 .scene-sec .sec-head { margin-bottom: 0; }
 
+/* --- analog light meter --- */
+.meter-wrap {
+  position: relative;
+  max-width: 340px;
+  margin: 0 auto;
+  width: 100%;
+}
+.meter { display: block; width: 100%; height: auto; }
+.meter .band {
+  fill: none;
+  stroke-width: 9;
+  opacity: 0.85;
+}
+.m-emoji { font-size: 12px; text-anchor: middle; }
+.m-tick {
+  font-size: 7px;
+  text-anchor: middle;
+  fill: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.meter-needle {
+  transform-origin: 100px 104px;
+  transition: transform 0.7s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.meter-needle line {
+  stroke: var(--gold);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.6));
+}
+.meter-needle circle {
+  fill: #1a0e02;
+  stroke: var(--gold);
+  stroke-width: 2;
+}
+.meter-read {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  margin-top: 2px;
+}
+.meter-ev {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 14px rgba(245, 158, 11, 0.4);
+}
+.meter-src { font-size: 0.7rem; color: var(--text-dim); }
+
 .file-input {
   position: absolute;
   width: 1px;

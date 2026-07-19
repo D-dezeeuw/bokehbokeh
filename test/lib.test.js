@@ -9,6 +9,7 @@ import {
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
+  meterAngle,
 } from '../lib.js';
 
 /** Build a solid-color ImageData-shaped object. */
@@ -303,6 +304,14 @@ test('classifyScene: pixel-heuristic fallback separates the obvious looks', () =
   assert.equal(classifyScene(indoor), 3);
   assert.equal(classifyScene(dim), 4);
   assert.equal(SCENES.length, 5);
+});
+
+test('meterAngle maps the EV range onto the dial and clamps the ends', () => {
+  assert.equal(meterAngle(-2), -80);
+  assert.equal(meterAngle(8), 0);
+  assert.equal(meterAngle(18), 80);
+  assert.equal(meterAngle(-10), -80);
+  assert.equal(meterAngle(25), 80);
 });
 
 test('scales are well-formed', () => {

@@ -10,6 +10,7 @@ import {
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
+  meterAngle,
 } from './lib.js';
 
 // === External services ===
@@ -558,6 +559,16 @@ const paintIso = () => {
 };
 watch(['isoIdx'], paintIso);
 
+// The analog meter needle follows the active scene EV — the sun/weather
+// model normally, the photo measurement while one is loaded.
+const paintMeter = () => {
+  const el = spektrum.refs.meterNeedle;
+  if (!el) return;
+  const ev = appState.exposure?.ev;
+  el.style.transform = `rotate(${meterAngle(ev ?? -2)}deg)`;
+};
+watch(['exposure'], paintMeter);
+
 // Sunrise/sunset shift the day-gradient on the time slider track.
 const paintSunTrack = () => {
   const el = spektrum.refs.timeCtl;
@@ -575,6 +586,7 @@ run();
 paintBokeh();
 paintSunTrack();
 paintIso();
+paintMeter();
 refreshLp(); // restored place doesn't fire the place watch
 
 // First visit: ask the browser for a location. Return visits reuse the

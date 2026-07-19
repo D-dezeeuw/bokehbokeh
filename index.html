@@ -122,6 +122,39 @@
         <span class="sec-sub" data-if="sceneView && sceneView.exif">measured · EXIF + render</span>
         <span class="sec-sub" data-if="sceneView && !sceneView.exif">estimated from photo look</span>
       </header>
+      <div class="meter-wrap" aria-label="Light meter">
+        <svg class="meter" viewBox="0 0 200 114" role="img">
+          <!-- EV arc, one band per scene class -->
+          <path class="band" d="M 17.28 89.41 A 84 84 0 0 1 60.56 29.83" stroke="#5b48b7" />
+          <path class="band" d="M 60.56 29.83 A 84 84 0 0 1 94.14 20.21" stroke="#a3742c" />
+          <path class="band" d="M 94.14 20.21 A 84 84 0 0 1 128.73 25.07" stroke="#4f8f52" />
+          <path class="band" d="M 128.73 25.07 A 84 84 0 0 1 158.35 43.58" stroke="#8fa3b8" />
+          <path class="band" d="M 158.35 43.58 A 84 84 0 0 1 182.72 89.41" stroke="#f5b93b" />
+          <!-- scene markers along the dial -->
+          <text x="49.03" y="66.97" class="m-emoji">🕯️</text>
+          <text x="82.63" y="43.44" class="m-emoji">💡</text>
+          <text x="108.77" y="41.61" class="m-emoji">🌳</text>
+          <text x="133.38" y="50.57" class="m-emoji">⛅</text>
+          <text x="155.63" y="74.42" class="m-emoji">☀️</text>
+          <!-- EV ticks -->
+          <text x="15.51" y="62.79" class="m-tick">0</text>
+          <text x="50.19" y="24.28" class="m-tick">4</text>
+          <text x="100" y="10" class="m-tick">8</text>
+          <text x="149.81" y="24.28" class="m-tick">12</text>
+          <text x="184.49" y="62.79" class="m-tick">16</text>
+          <!-- needle -->
+          <g class="meter-needle" data-ref="meterNeedle">
+            <line x1="100" y1="112" x2="100" y2="30" />
+            <circle cx="100" cy="104" r="5.5" />
+          </g>
+        </svg>
+        <div class="meter-read" data-if="exposure">
+          <span class="meter-ev">EV {{exposure.ev}}</span>
+          <span class="meter-src" data-if="meteredEV !== null">📸 from your photo</span>
+          <span class="meter-src" data-if="meteredEV === null">from sun &amp; weather</span>
+        </div>
+      </div>
+
       <input id="photoInput" class="file-input" type="file" accept="image/*"
         data-action="change" data-fn="analyzePhoto" aria-label="Analyze a photo">
       <label class="upload-btn" for="photoInput" data-if="!sceneView">
