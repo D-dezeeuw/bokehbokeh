@@ -113,6 +113,30 @@ const savePlace = (p) => {
   try { localStorage.setItem(PLACE_KEY, JSON.stringify(p)); } catch {}
 };
 
+const UI_KEY = 'bokehbokeh:ui';
+const SCENE_KEY = 'bokehbokeh:scene';
+
+const loadLevel = () => {
+  try {
+    const v = parseInt(localStorage.getItem(UI_KEY), 10);
+    return v >= 0 && v <= 2 ? v : 0;
+  } catch { return 0; }
+};
+
+const loadScene = () => {
+  try {
+    const sc = JSON.parse(localStorage.getItem(SCENE_KEY));
+    return sc?.markers && sc.ev != null ? sc : null;
+  } catch { return null; }
+};
+
+const saveScene = (sc) => {
+  try {
+    if (sc) localStorage.setItem(SCENE_KEY, JSON.stringify(sc));
+    else localStorage.removeItem(SCENE_KEY);
+  } catch {}
+};
+
 /** Browser-timezone offset fallback until weather tells us the location's. */
 const browserOffsetSec = () => -new Date().getTimezoneOffset() * 60;
 
@@ -135,9 +159,11 @@ setValue('searchError', '');
 setValue('lpZone', null); // atlas zone index once fetched
 setValue('lpOverride', -1); // -1 = auto (from atlas)
 setValue('focal', 20);
-setValue('scene', null); // photo light-check result
-setValue('meteredEV', null); // EV measured/estimated from a photo
+const restoredScene = loadScene();
+setValue('scene', restoredScene); // photo light-check result survives refresh
+setValue('meteredEV', restoredScene?.ev ?? null);
 setValue('sceneError', '');
+setValue('uiLevel', loadLevel()); // Basic / Advanced / Expert
 spektrum.tick();
 
 // addAsync owns `wx.{loading,data,error}` and auto-runs once on registration.
@@ -396,19 +422,20 @@ defineFn('setLp', (_el, _state, _delta, value) => setValue('lpOverride', value))
 
 // --- Photo light check ---
 
-/** Paint the analyzed photo (center-cropped square) and its luma histogram. */
-const drawScenePreview = (img) => {
+/** Paint the analyzed photo, center-cropped square, onto the thumb canvas. */
+const drawThumb = (img) => {
   const th = spektrum.refs.sceneThumb;
-  if (th && img) {
-    const s = Math.min(img.naturalWidth, img.naturalHeight);
-    th.getContext('2d').drawImage(
-      img,
-      (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s,
-      0, 0, th.width, th.height,
-    );
-  }
+  if (!th || !img) return;
+  const s = Math.min(img.naturalWidth, img.naturalHeight);
+  th.getContext('2d').drawImage(
+    img,
+    (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s,
+    0, 0, th.width, th.height,
+  );
+};
+
+const drawHist = (hist) => {
   const hc = spektrum.refs.sceneHist;
-  const hist = appState.scene?.markers?.hist;
   if (!hc || !hist) return;
   const ctx = hc.getContext('2d');
   ctx.clearRect(0, 0, hc.width, hc.height);
@@ -420,6 +447,16 @@ const drawScenePreview = (img) => {
     ctx.fillStyle = `rgb(${shade + 15}, ${Math.round(shade * 0.75)}, ${Math.round(shade * 0.3)})`;
     ctx.fillRect(i * bw + 0.5, hc.height - h, bw - 1, h);
   }
+};
+
+/** Restore the thumb + histogram of a persisted scene after a refresh. */
+const restoreScenePreview = (sc) => {
+  if (!sc) return;
+  drawHist(sc.markers?.hist);
+  if (!sc.thumb) return;
+  const img = new Image();
+  img.src = sc.thumb;
+  img.decode().then(() => drawThumb(img)).catch(() => {});
 };
 
 defineFn('analyzePhoto', async (el) => {
@@ -461,12 +498,17 @@ defineFn('analyzePhoto', async (el) => {
     }
     const cls = classifyScene(markers, ev);
     const scene = { cls, ev: ev ?? SCENES[cls].ev, exif: ev != null, rawEv, offset, markers };
+    drawThumb(img);
+    drawHist(markers.hist);
+    URL.revokeObjectURL(url);
+    // Persist the whole analysis (incl. the small thumb) so a refresh
+    // brings the light check straight back.
+    try { scene.thumb = spektrum.refs.sceneThumb?.toDataURL('image/jpeg', 0.72); } catch {}
     setValue('scene', scene);
     setValue('meteredEV', scene.ev);
+    saveScene(scene);
     spektrum.tick();
     autoSolve();
-    drawScenePreview(img);
-    URL.revokeObjectURL(url);
   } catch {
     setValue('sceneError', 'Could not read that photo — try a JPG or PNG.');
   }
@@ -481,6 +523,7 @@ defineFn('setScene', (_el, _state, _delta, value) => {
   const next = { ...sc, cls: value, ev: sc.exif ? sc.ev : SCENES[value].ev };
   setValue('scene', next);
   setValue('meteredEV', next.ev);
+  saveScene(next);
   spektrum.tick();
   autoSolve();
 });
@@ -488,9 +531,12 @@ defineFn('setScene', (_el, _state, _delta, value) => {
 defineFn('clearScene', () => {
   setValue('scene', null);
   setValue('meteredEV', null);
+  saveScene(null);
   spektrum.tick();
   autoSolve();
 });
+
+defineFn('setLevel', (_el, _state, _delta, value) => setValue('uiLevel', value));
 
 defineFn('retryWx', () => refetchWx?.());
 
@@ -559,6 +605,19 @@ const paintIso = () => {
 };
 watch(['isoIdx'], paintIso);
 
+// Interface level: a class on the card root drives which sections CSS
+// shows (`.adv` at Advanced+, `.exp` at Expert). Persisted per device.
+const paintLevel = () => {
+  const card = spektrum.refs.card;
+  const lvl = appState.uiLevel ?? 0;
+  if (card) {
+    card.classList.remove('level-0', 'level-1', 'level-2');
+    card.classList.add(`level-${lvl}`);
+  }
+  try { localStorage.setItem(UI_KEY, String(lvl)); } catch {}
+};
+watch(['uiLevel'], paintLevel);
+
 // The analog meter needle follows the active scene EV — the sun/weather
 // model normally, the photo measurement while one is loaded.
 const paintMeter = () => {
@@ -587,6 +646,8 @@ paintBokeh();
 paintSunTrack();
 paintIso();
 paintMeter();
+paintLevel();
+restoreScenePreview(restoredScene);
 refreshLp(); // restored place doesn't fire the place watch
 
 // First visit: ask the browser for a location. Return visits reuse the
