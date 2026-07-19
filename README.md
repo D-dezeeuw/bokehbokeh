@@ -21,7 +21,13 @@ sliders and one-tap presets for maximum or minimum bokeh.
    shutter speed and warns about handheld blur, ND-filter territory and
    high-ISO noise. While a preset is active, ISO re-solves automatically as
    you scrub through the day.
-5. **Night sky** — reads the zenith light pollution for your location from
+5. **Light check** — snap or pick a photo (analyzed entirely on-device,
+   never uploaded): EXIF exposure data turns it into a real light meter
+   (measured scene EV), with pixel markers (brightness, contrast, warmth,
+   saturation, clipping, histogram) classifying the scene — bright sun,
+   overcast, shade, indoors, dim — as a fallback and sanity check. The
+   metered EV drives the main settings until cleared.
+6. **Night sky** — reads the zenith light pollution for your location from
    David Lorenz's [Light Pollution Atlas](https://djlorenz.github.io/astronomy/lp/)
    tiles (single-pixel canvas lookup, manual Bortle override available) and
    recommends star settings: trail-free shutter via the 500 rule for your

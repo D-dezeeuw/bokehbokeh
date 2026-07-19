@@ -9,6 +9,7 @@ import {
   localParts, utcMsAt, fmtTime, parseQuery,
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
+  analyzePixels, parseExif, exifEV, SCENES, classifyScene,
 } from './lib.js';
 
 // === External services ===
@@ -133,6 +134,9 @@ setValue('searchError', '');
 setValue('lpZone', null); // atlas zone index once fetched
 setValue('lpOverride', -1); // -1 = auto (from atlas)
 setValue('focal', 20);
+setValue('scene', null); // photo light-check result
+setValue('meteredEV', null); // EV measured/estimated from a photo
+setValue('sceneError', '');
 spektrum.tick();
 
 // addAsync owns `wx.{loading,data,error}` and auto-runs once on registration.
@@ -171,11 +175,11 @@ computed('sun', ['place', 'wx.data', 'dayIndex', 'timeMinutes'], (s) => {
   return { elev: Math.round(elev * 10) / 10, ...sunPhase(elev) };
 });
 
-computed('exposure', ['sun', 'cond', 'apertureIdx', 'isoIdx'], (s) => {
+computed('exposure', ['sun', 'cond', 'apertureIdx', 'isoIdx', 'meteredEV'], (s) => {
   if (!s.sun) return null;
   const N = F_STOPS[s.apertureIdx ?? 3] ?? 1.8;
   const iso = ISOS[s.isoIdx ?? 0] ?? 100;
-  const ev = Math.round(sceneEV(s.sun.elev, s.cond?.penalty ?? 0) * 10) / 10;
+  const ev = s.meteredEV ?? Math.round(sceneEV(s.sun.elev, s.cond?.penalty ?? 0) * 10) / 10;
   const exact = shutterSeconds(ev, N, iso);
   const snap = snapShutter(exact);
   const warnings = [];
@@ -256,14 +260,30 @@ computed('astro', ['lp', 'focal', 'place', 'wx.data', 'dayIndex'], (s) => {
   };
 });
 
+computed('sceneView', ['scene'], (s) => {
+  const sc = s.scene;
+  if (!sc) return null;
+  const c = SCENES[sc.cls];
+  return {
+    ...c,
+    ev: sc.ev,
+    exif: sc.exif,
+    mean: sc.markers.mean,
+    contrast: sc.markers.contrast,
+    warmth: sc.markers.warmth,
+    clipHi: sc.markers.clipHi,
+  };
+});
+
 // === Presets & auto-solve ===
 
 const PRESET_APERTURE = { bokeh: 1.8, deep: 11 };
 
-/** Scene EV read straight from sun/cond — `exposure` may not have
- *  re-derived yet when a watch fires in the same tick pass. */
+/** Scene EV read straight from state — `exposure` may not have
+ *  re-derived yet when a watch fires in the same tick pass. A photo-
+ *  metered EV overrides the sun/weather model until cleared. */
 const currentEV = () =>
-  sceneEV(appState.sun?.elev ?? 30, appState.cond?.penalty ?? 0);
+  appState.meteredEV ?? sceneEV(appState.sun?.elev ?? 30, appState.cond?.penalty ?? 0);
 
 const applyPreset = (kind) => {
   const N = PRESET_APERTURE[kind];
@@ -370,6 +390,95 @@ defineFn('unpreset', () => {
 });
 
 defineFn('setLp', (_el, _state, _delta, value) => setValue('lpOverride', value));
+
+// --- Photo light check ---
+
+/** Paint the analyzed photo (center-cropped square) and its luma histogram. */
+const drawScenePreview = (img) => {
+  const th = spektrum.refs.sceneThumb;
+  if (th && img) {
+    const s = Math.min(img.naturalWidth, img.naturalHeight);
+    th.getContext('2d').drawImage(
+      img,
+      (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s,
+      0, 0, th.width, th.height,
+    );
+  }
+  const hc = spektrum.refs.sceneHist;
+  const hist = appState.scene?.markers?.hist;
+  if (!hc || !hist) return;
+  const ctx = hc.getContext('2d');
+  ctx.clearRect(0, 0, hc.width, hc.height);
+  const max = Math.max(...hist, 1);
+  const bw = hc.width / hist.length;
+  for (let i = 0; i < hist.length; i++) {
+    const h = (hist[i] / max) * (hc.height - 3);
+    const shade = 60 + Math.round((i / hist.length) * 180);
+    ctx.fillStyle = `rgb(${shade + 15}, ${Math.round(shade * 0.75)}, ${Math.round(shade * 0.3)})`;
+    ctx.fillRect(i * bw + 0.5, hc.height - h, bw - 1, h);
+  }
+};
+
+defineFn('analyzePhoto', async (el) => {
+  const file = el?.files?.[0];
+  if (!file) return;
+  setValue('sceneError', '');
+  try {
+    // EXIF first: shutter/aperture/ISO make the photo a real light meter.
+    let ev = null;
+    let exif = null;
+    try {
+      exif = parseExif(await file.arrayBuffer());
+      if (exif) ev = exifEV(exif);
+    } catch {}
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    // Downscale for analysis — markers are resolution-independent.
+    const scale = 96 / Math.max(img.naturalWidth, img.naturalHeight);
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const markers = analyzePixels(ctx.getImageData(0, 0, w, h));
+
+    const cls = classifyScene(markers, ev);
+    const scene = { cls, ev: ev ?? SCENES[cls].ev, exif: ev != null, markers };
+    setValue('scene', scene);
+    setValue('meteredEV', scene.ev);
+    spektrum.tick();
+    autoSolve();
+    drawScenePreview(img);
+    URL.revokeObjectURL(url);
+  } catch {
+    setValue('sceneError', 'Could not read that photo — try a JPG or PNG.');
+  }
+  el.value = ''; // same file can be re-picked later
+});
+
+/** Manual scene correction. A measured (EXIF) EV stays authoritative;
+ *  pixel-estimated photos adopt the chosen class's representative EV. */
+defineFn('setScene', (_el, _state, _delta, value) => {
+  const sc = appState.scene;
+  if (!sc) return;
+  const next = { ...sc, cls: value, ev: sc.exif ? sc.ev : SCENES[value].ev };
+  setValue('scene', next);
+  setValue('meteredEV', next.ev);
+  spektrum.tick();
+  autoSolve();
+});
+
+defineFn('clearScene', () => {
+  setValue('scene', null);
+  setValue('meteredEV', null);
+  spektrum.tick();
+  autoSolve();
+});
 
 defineFn('retryWx', () => refetchWx?.());
 

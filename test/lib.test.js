@@ -8,7 +8,59 @@ import {
   localParts, utcMsAt, fmtTime, parseQuery,
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
+  analyzePixels, parseExif, exifEV, SCENES, classifyScene,
 } from '../lib.js';
+
+/** Build a solid-color ImageData-shaped object. */
+const flatImage = (w, h, [r, g, b]) => {
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
+    data[i * 4] = r; data[i * 4 + 1] = g; data[i * 4 + 2] = b; data[i * 4 + 3] = 255;
+  }
+  return { data, width: w, height: h };
+};
+
+/** Minimal little-endian JPEG with EXIF ExposureTime/FNumber/ISO. */
+const exifJpeg = (tNum, tDen, nNum, nDen, iso) => {
+  const tiffLen = 84;
+  const buf = new ArrayBuffer(2 + 4 + 6 + tiffLen + 2);
+  const v = new DataView(buf);
+  let o = 0;
+  v.setUint16(o, 0xffd8); o += 2; // SOI
+  v.setUint16(o, 0xffe1); o += 2; // APP1
+  v.setUint16(o, 2 + 6 + tiffLen); o += 2;
+  [0x45, 0x78, 0x69, 0x66, 0, 0].forEach((c) => { v.setUint8(o++, c); }); // "Exif\0\0"
+  const base = o;
+  v.setUint16(base, 0x4949, true); // "II"
+  v.setUint16(base + 2, 0x2a, true);
+  v.setUint32(base + 4, 8, true); // IFD0 offset
+  // IFD0: one entry — ExifIFD pointer → 26
+  v.setUint16(base + 8, 1, true);
+  v.setUint16(base + 10, 0x8769, true);
+  v.setUint16(base + 12, 4, true);
+  v.setUint32(base + 14, 1, true);
+  v.setUint32(base + 18, 26, true);
+  v.setUint32(base + 22, 0, true); // next IFD
+  // ExifIFD @26: three entries; rational values at 68 and 76
+  v.setUint16(base + 26, 3, true);
+  const entry = (i, tag, type, val) => {
+    const e = base + 28 + i * 12;
+    v.setUint16(e, tag, true);
+    v.setUint16(e + 2, type, true);
+    v.setUint32(e + 4, 1, true);
+    v.setUint32(e + 8, val, true);
+  };
+  entry(0, 0x829a, 5, 68); // ExposureTime → rational @68
+  entry(1, 0x829d, 5, 76); // FNumber → rational @76
+  entry(2, 0x8827, 3, iso); // ISO inline
+  v.setUint32(base + 64, 0, true); // next IFD
+  v.setUint32(base + 68, tNum, true);
+  v.setUint32(base + 72, tDen, true);
+  v.setUint32(base + 76, nNum, true);
+  v.setUint32(base + 80, nDen, true);
+  v.setUint16(2 + 4 + 6 + tiffLen, 0xffd9); // EOI
+  return buf;
+};
 
 test('sunElevation: high at summer noon, below horizon at midnight (Rotterdam)', () => {
   const noon = Date.UTC(2026, 5, 21, 11, 42); // ~solar noon at 4.5°E
@@ -157,6 +209,73 @@ test('darknessWindow: Dutch midsummer has no astro dark, midwinter does', () => 
   const winter = darknessWindow(3600, jan, 0, 51.92, 4.48);
   assert.equal(winter.astro, true);
   assert.ok(winter.from && winter.to);
+});
+
+test('analyzePixels: flat gray frame has no contrast, neutral warmth', () => {
+  const m = analyzePixels(flatImage(8, 8, [128, 128, 128]));
+  assert.equal(m.mean, 128);
+  assert.equal(m.contrast, 0);
+  assert.equal(m.warmth, 1);
+  assert.equal(m.sat, 0);
+  assert.equal(m.clipHi, 0);
+  assert.equal(m.topRatio, 1);
+  assert.equal(m.hist[16], 64);
+});
+
+test('analyzePixels: white-over-black split maxes contrast, clipping, topRatio', () => {
+  const img = flatImage(10, 10, [0, 0, 0]);
+  for (let i = 0; i < 50; i++) { // top half white
+    img.data[i * 4] = 255; img.data[i * 4 + 1] = 255; img.data[i * 4 + 2] = 255;
+  }
+  const m = analyzePixels(img);
+  assert.ok(Math.abs(m.mean - 128) <= 1, `mean ${m.mean}`);
+  assert.ok(m.contrast > 0.95, `contrast ${m.contrast}`);
+  assert.equal(m.clipHi, 50);
+  assert.equal(m.clipLo, 50);
+  assert.ok(m.topRatio > 1.9, `topRatio ${m.topRatio}`);
+});
+
+test('analyzePixels: tungsten-lit frame reads warm', () => {
+  const m = analyzePixels(flatImage(4, 4, [200, 150, 80]));
+  assert.ok(m.warmth > 2, `warmth ${m.warmth}`);
+  assert.ok(m.sat > 0.5, `sat ${m.sat}`);
+});
+
+test('parseExif reads the three exposure tags; garbage returns null', () => {
+  const exif = parseExif(exifJpeg(1, 250, 28, 10, 100));
+  assert.ok(exif);
+  assert.ok(Math.abs(exif.t - 1 / 250) < 1e-9);
+  assert.ok(Math.abs(exif.N - 2.8) < 1e-9);
+  assert.equal(exif.iso, 100);
+  assert.equal(parseExif(new ArrayBuffer(4)), null);
+  assert.equal(parseExif(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3]).buffer), null);
+});
+
+test('exifEV: sunny-16 photo measures EV 15', () => {
+  assert.ok(Math.abs(exifEV({ N: 16, t: 1 / 125, iso: 100 }) - 15) < 0.1);
+  assert.equal(exifEV({ N: null, t: 1 / 125, iso: 100 }), null);
+});
+
+test('classifyScene: EXIF EV bands with warmth tiebreaks', () => {
+  assert.equal(classifyScene({ warmth: 1 }, 15), 0); // bright sun
+  assert.equal(classifyScene({ warmth: 1 }, 12), 1); // overcast
+  assert.equal(classifyScene({ warmth: 1 }, 8), 2); // cool → shade
+  assert.equal(classifyScene({ warmth: 1.4 }, 8), 3); // warm bright room
+  assert.equal(classifyScene({ warmth: 1.2 }, 5), 3); // lamp-lit room
+  assert.equal(classifyScene({ warmth: 1 }, 5), 2); // cool dusk
+  assert.equal(classifyScene({ warmth: 1 }, 2), 4); // dim
+});
+
+test('classifyScene: pixel-heuristic fallback separates the obvious looks', () => {
+  const sun = { mean: 150, contrast: 0.4, warmth: 1.05, sat: 0.35, clipHi: 4, clipLo: 1, topRatio: 1.3 };
+  const overcast = { mean: 140, contrast: 0.15, warmth: 1.0, sat: 0.1, clipHi: 2, clipLo: 0, topRatio: 1.3 };
+  const indoor = { mean: 120, contrast: 0.3, warmth: 1.45, sat: 0.25, clipHi: 0.2, clipLo: 0, topRatio: 1.0 };
+  const dim = { mean: 40, contrast: 0.2, warmth: 1.3, sat: 0.2, clipHi: 0, clipLo: 20, topRatio: 1 };
+  assert.equal(classifyScene(sun), 0);
+  assert.equal(classifyScene(overcast), 1);
+  assert.equal(classifyScene(indoor), 3);
+  assert.equal(classifyScene(dim), 4);
+  assert.equal(SCENES.length, 5);
 });
 
 test('scales are well-formed', () => {

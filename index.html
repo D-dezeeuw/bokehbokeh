@@ -115,6 +115,47 @@
       </div>
     </section>
 
+    <!-- Photo light check -->
+    <section class="scene-sec">
+      <header class="sec-head">
+        <h2>Light check</h2>
+        <span class="sec-sub" data-if="sceneView && sceneView.exif">measured from photo EXIF</span>
+        <span class="sec-sub" data-if="sceneView && !sceneView.exif">estimated from photo look</span>
+      </header>
+      <input id="photoInput" class="file-input" type="file" accept="image/*"
+        data-action="change" data-fn="analyzePhoto" aria-label="Analyze a photo">
+      <label class="upload-btn" for="photoInput" data-if="!sceneView">
+        <span class="upload-main">📸 Check the light from a photo</span>
+        <span class="upload-sub">snap or pick one — analyzed on your device, never uploaded</span>
+      </label>
+      <p class="geo-note" data-if="sceneError">{{sceneError}}</p>
+
+      <div class="scene-card" data-if="sceneView">
+        <canvas class="scene-thumb" data-ref="sceneThumb" width="96" height="96"></canvas>
+        <div class="scene-info">
+          <span class="scene-label">{{sceneView.icon}} {{sceneView.label}}</span>
+          <span class="scene-ev">EV {{sceneView.ev}}<span data-if="!sceneView.exif"> (approx.)</span></span>
+          <div class="scene-stats">
+            <span class="stat">brightness {{sceneView.mean}}/255</span>
+            <span class="stat">contrast {{sceneView.contrast}}</span>
+            <span class="stat">warmth {{sceneView.warmth}}</span>
+            <span class="stat" data-if="sceneView.clipHi > 1">{{sceneView.clipHi}}% blown</span>
+          </div>
+        </div>
+        <button type="button" class="scene-clear" data-action="click" data-fn="clearScene" aria-label="Clear photo">✕</button>
+      </div>
+      <canvas class="scene-hist" data-ref="sceneHist" data-if="sceneView" width="320" height="44" aria-label="Luminance histogram"></canvas>
+      <div class="chips" role="group" aria-label="Scene type" data-if="sceneView">
+        <button type="button" class="chip" :class="{active: scene.cls === 0}" data-action="click" data-fn="setScene" data-value="0">☀️ Sun</button>
+        <button type="button" class="chip" :class="{active: scene.cls === 1}" data-action="click" data-fn="setScene" data-value="1">⛅ Overcast</button>
+        <button type="button" class="chip" :class="{active: scene.cls === 2}" data-action="click" data-fn="setScene" data-value="2">🌳 Shade</button>
+        <button type="button" class="chip" :class="{active: scene.cls === 3}" data-action="click" data-fn="setScene" data-value="3">💡 Indoors</button>
+        <button type="button" class="chip" :class="{active: scene.cls === 4}" data-action="click" data-fn="setScene" data-value="4">🕯️ Dim</button>
+      </div>
+      <p class="scene-tip" data-if="sceneView">💡 {{sceneView.tip}}</p>
+      <label class="upload-again" for="photoInput" data-if="sceneView">📸 check another photo</label>
+    </section>
+
     <!-- Result -->
     <section class="result" data-if="exposure">
       <div class="res-light">
@@ -123,6 +164,7 @@
         <span>sun {{sun.elev}}°</span>
         <span class="res-sep">·</span>
         <span>EV {{exposure.ev}}</span>
+        <span class="res-metered" data-if="meteredEV !== null">📸 metered</span>
       </div>
       <div class="res-main">
         <div class="res-item">
