@@ -180,10 +180,13 @@
 
     <!-- Bokeh preview -->
     <section class="preview" data-ref="stage" aria-label="Bokeh preview">
-      <div class="lights" aria-hidden="true">
-        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      <div class="scene" aria-hidden="true">
+        <div class="lights">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <span class="subject">📷</span>
       </div>
-      <span class="subject" aria-hidden="true">📷</span>
+      <div class="noise" aria-hidden="true"></div>
       <span class="preview-tag">{{bokeh.label}} · {{bokeh.score}}% blur</span>
     </section>
   </main>
