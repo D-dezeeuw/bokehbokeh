@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BokehBokeh · dial in your light</title>
+  <meta name="description" content="Camera settings calculator — shutter, aperture and ISO from your location, time and weather.">
+  <meta name="theme-color" content="#0a0605">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='11' cy='14' r='8' fill='%23f59e0b' opacity='0.9'/%3E%3Ccircle cx='21' cy='19' r='7' fill='%23ff5dc8' opacity='0.7'/%3E%3Ccircle cx='20' cy='9' r='5' fill='%2322d3ee' opacity='0.8'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "spektrum": "https://unpkg.com/spektrum@0/spektrum.min.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="bg-bokeh" aria-hidden="true">
+    <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+  </div>
+
+  <main class="card" data-cloak>
+    <header class="hero">
+      <h1>Bokeh<span>Bokeh</span></h1>
+      <p class="tag">the right settings for your light, instantly.</p>
+    </header>
+
+    <!-- Location -->
+    <div class="loc-bar">
+      <button
+        type="button"
+        class="geo-btn"
+        data-action="click"
+        data-fn="useMyLocation"
+        :disabled="geoStatus === 'asking'"
+        aria-label="Use my location"
+        title="Use my location">
+        <span data-if="geoStatus !== 'asking'">📍</span>
+        <span data-if="geoStatus === 'asking'">…</span>
+      </button>
+      <form class="search" data-action="submit.prevent" data-fn="searchCity">
+        <input
+          type="text"
+          class="search-input"
+          data-ref="searchInput"
+          placeholder="Amsterdam, NL"
+          autocomplete="off"
+          spellcheck="false">
+        <button type="submit" class="search-btn" :disabled="wxLoading">
+          <span data-if="!wxLoading">Set</span>
+          <span data-if="wxLoading">…</span>
+        </button>
+      </form>
+    </div>
+    <p class="geo-note" data-if="geoStatus === 'denied'">Location denied — search for a city instead.</p>
+    <p class="geo-note" data-if="searchError">{{searchError}}</p>
+
+    <section class="location" data-if="place.name">
+      <div class="loc-text">
+        <h2>{{place.name}}<span class="country" data-if="place.country">, {{place.country}}</span></h2>
+        <p class="date">{{dateLabel}} · {{timeLabel}}</p>
+      </div>
+      <div class="loc-wx">
+        <span class="loc-icon">{{cond.icon}}</span>
+        <span class="loc-temp" data-if="cond.temp !== null && cond.temp !== undefined">{{cond.temp}}°</span>
+      </div>
+    </section>
+
+    <div class="error" data-if="wxError">
+      <span class="error-msg">No weather data — pick conditions manually below.</span>
+      <button type="button" class="retry-btn" data-action="click" data-fn="retryWx" :disabled="wxLoading">
+        <span data-if="!wxLoading">Retry</span>
+        <span data-if="wxLoading">…</span>
+      </button>
+    </div>
+
+    <!-- Time -->
+    <section class="when">
+      <div class="when-head">
+        <nav class="day-tabs" aria-label="Day selector">
+          <button type="button" class="day-tab" :class="{active: dayIndex === 0}"
+            :aria-pressed="dayIndex === 0" data-action="click" data-fn="selectDay" data-value="0">Today</button>
+          <button type="button" class="day-tab" :class="{active: dayIndex === 1}"
+            :aria-pressed="dayIndex === 1" data-action="click" data-fn="selectDay" data-value="1">Tomorrow</button>
+        </nav>
+        <button type="button" class="now-btn" data-action="click" data-fn="setNow">↺ now</button>
+      </div>
+      <div class="ctl time-ctl" data-ref="timeCtl">
+        <input type="range" min="0" max="1425" step="15" data-model="timeMinutes.number" aria-label="Time of day">
+        <div class="ctl-scale">
+          <span data-if="sunTimes.rise">🌅 {{sunTimes.rise}}</span>
+          <span class="time-big">{{timeLabel}}</span>
+          <span data-if="sunTimes.set">🌇 {{sunTimes.set}}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Weather conditions -->
+    <section class="conditions">
+      <header class="sec-head">
+        <h2>Conditions</h2>
+        <span class="sec-sub" data-if="cond.auto && cond.cloud !== null && cond.cloud !== undefined">auto · {{cond.cloud}}% cloud</span>
+        <span class="sec-sub" data-if="!cond.auto">manual</span>
+      </header>
+      <div class="chips" role="group" aria-label="Weather conditions">
+        <button type="button" class="chip" :class="{active: wxOverride === -1}" data-action="click" data-fn="setCond" data-value="-1">Auto</button>
+        <button type="button" class="chip" :class="{active: wxOverride === 0}" data-action="click" data-fn="setCond" data-value="0">☀️ Clear</button>
+        <button type="button" class="chip" :class="{active: wxOverride === 1}" data-action="click" data-fn="setCond" data-value="1">🌤️ Partly</button>
+        <button type="button" class="chip" :class="{active: wxOverride === 2}" data-action="click" data-fn="setCond" data-value="2">⛅ Cloudy</button>
+        <button type="button" class="chip" :class="{active: wxOverride === 3}" data-action="click" data-fn="setCond" data-value="3">☁️ Overcast</button>
+        <button type="button" class="chip" :class="{active: wxOverride === 4}" data-action="click" data-fn="setCond" data-value="4">🌧️ Rain</button>
+        <button type="button" class="chip" :class="{active: wxOverride === 5}" data-action="click" data-fn="setCond" data-value="5">🌫️ Fog</button>
+      </div>
+    </section>
+
+    <!-- Result -->
+    <section class="result" data-if="exposure">
+      <div class="res-light">
+        <span>{{sun.phaseIcon}} {{sun.phase}}</span>
+        <span class="res-sep">·</span>
+        <span>sun {{sun.elev}}°</span>
+        <span class="res-sep">·</span>
+        <span>EV {{exposure.ev}}</span>
+      </div>
+      <div class="res-main">
+        <div class="res-item">
+          <span class="res-label">Shutter</span>
+          <span class="res-value">{{exposure.shutter}}</span>
+        </div>
+        <div class="res-item">
+          <span class="res-label">Aperture</span>
+          <span class="res-value">f/{{exposure.N}}</span>
+        </div>
+        <div class="res-item">
+          <span class="res-label">ISO</span>
+          <span class="res-value">{{exposure.iso}}</span>
+        </div>
+      </div>
+      <p class="res-note" data-if="exposure.warning">⚠️ {{exposure.warning}}</p>
+    </section>
+
+    <!-- Presets -->
+    <section class="presets-sec">
+      <header class="sec-head"><h2>Look</h2></header>
+      <div class="presets">
+        <button type="button" class="preset" :class="{active: preset === 'bokeh'}" data-action="click" data-fn="presetBokeh">
+          <span class="preset-name">✨ Max bokeh</span>
+          <span class="preset-desc">f/1.8 wide open — melted background</span>
+        </button>
+        <button type="button" class="preset" :class="{active: preset === 'deep'}" data-action="click" data-fn="presetDeep">
+          <span class="preset-name">🏔️ Deep focus</span>
+          <span class="preset-desc">f/11 stopped down — everything sharp</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Sliders -->
+    <section class="sliders">
+      <div class="ctl">
+        <div class="ctl-head">
+          <label for="aperture">Aperture</label>
+          <span class="ctl-val">f/{{exposure.N}}</span>
+        </div>
+        <input id="aperture" type="range" min="0" max="25" step="1"
+          data-model="apertureIdx.number" data-action="input" data-fn="unpreset">
+        <div class="ctl-scale"><span>f/1.2 · blurry</span><span>f/22 · sharp</span></div>
+      </div>
+      <div class="ctl">
+        <div class="ctl-head">
+          <label for="iso">ISO</label>
+          <span class="ctl-val">{{exposure.iso}}</span>
+        </div>
+        <input id="iso" type="range" min="0" max="7" step="1"
+          data-model="isoIdx.number" data-action="input" data-fn="unpreset">
+        <div class="ctl-scale"><span>100 · clean</span><span>12800 · noisy</span></div>
+      </div>
+    </section>
+
+    <!-- Bokeh preview -->
+    <section class="preview" data-ref="stage" aria-label="Bokeh preview">
+      <div class="lights" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <span class="subject" aria-hidden="true">📷</span>
+      <span class="preview-tag">{{bokeh.label}} · {{bokeh.score}}% blur</span>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p class="footer-credits">
+      <span>Weather by <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">open-meteo</a></span>
+      <span class="credit-sep" aria-hidden="true">·</span>
+      <span>Built with <a href="https://www.npmjs.com/package/spektrum" target="_blank" rel="noopener noreferrer">
+        <svg class="spektrum-mark" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="1" y="6" width="2" height="6" rx="1" fill="#ef4444" />
+          <rect x="5" y="3" width="2" height="9" rx="1" fill="#f59e0b" />
+          <rect x="9" y="5" width="2" height="7" rx="1" fill="#7c5cff" />
+          <rect x="13" y="2" width="2" height="10" rx="1" fill="#2dd4bf" />
+        </svg>
+        Spektrum
+      </a></span>
+      <span class="credit-sep" aria-hidden="true">·</span>
+      <span><a href="https://github.com/D-dezeeuw/bokehbokeh" target="_blank" rel="noopener noreferrer">GitHub</a></span>
+    </p>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
