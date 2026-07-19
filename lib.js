@@ -157,6 +157,126 @@ export const sunPhase = (elev) => {
   return { phase: 'Night', phaseIcon: '🌙' };
 };
 
+// === Night sky / light pollution ===
+
+/**
+ * Light Pollution Atlas zones (David Lorenz, djlorenz.github.io).
+ * Zone N+1 is 3× brighter than zone N; artificial = natural sky (LPI 1)
+ * at the zone 3/4 (green→yellow) boundary. `sqm` is total zenith sky
+ * brightness (mag/arcsec², natural sky 22.0) at each zone's geometric
+ * midpoint LPI.
+ */
+export const LP_ZONES = [
+  { hue: 'black', sqm: 21.94, bortle: '1–2', cls: 0 },
+  { hue: 'blue', sqm: 21.81, bortle: '3', cls: 1 },
+  { hue: 'green', sqm: 21.5, bortle: '4', cls: 1 },
+  { hue: 'yellow', sqm: 20.91, bortle: '5', cls: 2 },
+  { hue: 'orange', sqm: 20.02, bortle: '6', cls: 3 },
+  { hue: 'red', sqm: 18.95, bortle: '7', cls: 3 },
+  { hue: 'magenta', sqm: 17.8, bortle: '8', cls: 4 },
+  { hue: 'white', sqm: 16.6, bortle: '9', cls: 4 },
+];
+
+/** Coarse display classes — also the manual override choices. */
+export const LP_CLASSES = [
+  { key: 'pristine', label: 'Pristine', icon: '🌌', sqm: 21.95, bortle: '1–2' },
+  { key: 'rural', label: 'Rural', icon: '🏞️', sqm: 21.6, bortle: '3–4' },
+  { key: 'suburban', label: 'Suburban', icon: '🏘️', sqm: 20.9, bortle: '5' },
+  { key: 'city', label: 'City', icon: '🌆', sqm: 19.5, bortle: '6–7' },
+  { key: 'metro', label: 'Metro', icon: '🏙️', sqm: 17.5, bortle: '8–9' },
+];
+
+/**
+ * Map an atlas overlay pixel to an LP_ZONES index. Classified by hue —
+ * robust to the a/b lightness sub-shades and edge anti-aliasing.
+ * Transparent or near-black pixels mean no measurable light pollution.
+ */
+export const classifyLpPixel = (r, g, b, a = 255) => {
+  if (a < 40) return 0;
+  const mx = Math.max(r, g, b);
+  const mn = Math.min(r, g, b);
+  const light = (mx + mn) / 2;
+  const sat = mx === mn ? 0 : (mx - mn) / (255 - Math.abs(2 * light - 255));
+  if (sat < 0.15) {
+    if (light < 64) return 0; // black
+    if (light > 200) return 7; // white core
+    return 1; // gray-ish → dark rural
+  }
+  const d = mx - mn;
+  let hue;
+  if (mx === r) hue = ((g - b) / d + 6) % 6;
+  else if (mx === g) hue = (b - r) / d + 2;
+  else hue = (r - g) / d + 4;
+  hue *= 60;
+  if (hue >= 340 || hue < 20) return 5; // red
+  if (hue < 52) return 4; // orange
+  if (hue < 70) return 3; // yellow
+  if (hue < 195) return 2; // green
+  if (hue < 280) return 1; // blue
+  return 6; // magenta / pink
+};
+
+/** Longest trail-free shutter (s) for a full-frame focal length — 500 rule. */
+export const trailLimit = (focal) => Math.min(30, Math.round((500 / focal) * 10) / 10);
+
+/**
+ * ISO that renders the sky ~3 stops under mid-gray (the classic astro
+ * exposure) for a given zenith brightness, aperture and shutter.
+ * SQM → luminance: L = 10.8e4 × 10^(-0.4·sqm) cd/m²; EV100 = log2(8L).
+ */
+export const astroIso = (sqm, N, t) => {
+  const L = 108000 * Math.pow(10, -0.4 * sqm);
+  const ev = Math.log2(8 * L) + 3;
+  const exact = (100 * N * N) / (t * Math.pow(2, ev));
+  let best = ISOS[0];
+  let bestD = Infinity;
+  for (const iso of ISOS) {
+    const dist = Math.abs(Math.log2(iso / exact));
+    if (dist < bestD) { bestD = dist; best = iso; }
+  }
+  return { iso: best, clipped: exact > ISOS.at(-1) * 1.4 };
+};
+
+/** Moon age (days) and illuminated fraction (%) — anchor: new moon 2000-01-06 18:14 UTC. */
+export const moonPhase = (utcMs) => {
+  const synodic = 29.530588853;
+  const days = (utcMs - Date.UTC(2000, 0, 6, 18, 14)) / 86400000;
+  const age = ((days % synodic) + synodic) % synodic;
+  const illum = Math.round(((1 - Math.cos((2 * Math.PI * age) / synodic)) / 2) * 100);
+  const icons = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'];
+  const icon = icons[Math.round((age / synodic) * 8) % 8];
+  return { age, illum, icon };
+};
+
+/**
+ * Scan the night following the selected day (local noon → next noon)
+ * for astronomical darkness (sun ≤ -18°). Falls back to reporting the
+ * deepest twilight when the sun never gets that low (midsummer at
+ * high latitudes).
+ */
+export const darknessWindow = (offsetSec, baseUtcMs, dayOffset, lat, lon) => {
+  let from = null;
+  let to = null;
+  let deepest = 90;
+  let deepestAt = 720;
+  for (let m = 720; m < 2160; m += 10) {
+    const e = sunElevation(utcMsAt(offsetSec, baseUtcMs, dayOffset, m), lat, lon);
+    if (e < deepest) { deepest = e; deepestAt = m; }
+    if (e <= -18) {
+      if (from === null) from = m;
+      to = m;
+    }
+  }
+  const fmt = (m) => fmtTime(((m % 1440) + 1440) % 1440);
+  return {
+    astro: from !== null,
+    from: from !== null ? fmt(from) : null,
+    to: from !== null ? fmt(to) : null,
+    deepest: Math.round(deepest * 10) / 10,
+    deepestAt: fmt(deepestAt),
+  };
+};
+
 // === Time helpers ===
 
 /** Break a UTC timestamp into wall-clock parts at a UTC offset (seconds). */

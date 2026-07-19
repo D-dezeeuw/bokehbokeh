@@ -189,6 +189,62 @@
       <div class="noise" aria-hidden="true"></div>
       <span class="preview-tag">{{bokeh.label}} · {{bokeh.score}}% blur</span>
     </section>
+
+    <!-- Night sky / astro -->
+    <section class="astro" data-if="astro">
+      <header class="sec-head">
+        <h2>Night sky</h2>
+        <span class="sec-sub" data-if="lp.auto && lp.known">auto · LP atlas 2024</span>
+        <span class="sec-sub" data-if="lp.auto && !lp.known">atlas unavailable — pick below</span>
+        <span class="sec-sub" data-if="!lp.auto">manual</span>
+      </header>
+
+      <div class="lp-badge">
+        <span class="lp-icon">{{lp.icon}}</span>
+        <div class="lp-text">
+          <span class="lp-label">{{lp.label}} sky · Bortle {{lp.bortle}}</span>
+          <span class="lp-sub">≈ {{lp.sqm}} mag/arcsec² at zenith</span>
+        </div>
+      </div>
+
+      <div class="chips" role="group" aria-label="Light pollution level">
+        <button type="button" class="chip" :class="{active: lpOverride === -1}" data-action="click" data-fn="setLp" data-value="-1">Auto</button>
+        <button type="button" class="chip" :class="{active: lpOverride === 0}" data-action="click" data-fn="setLp" data-value="0">🌌 Pristine</button>
+        <button type="button" class="chip" :class="{active: lpOverride === 1}" data-action="click" data-fn="setLp" data-value="1">🏞️ Rural</button>
+        <button type="button" class="chip" :class="{active: lpOverride === 2}" data-action="click" data-fn="setLp" data-value="2">🏘️ Suburban</button>
+        <button type="button" class="chip" :class="{active: lpOverride === 3}" data-action="click" data-fn="setLp" data-value="3">🌆 City</button>
+        <button type="button" class="chip" :class="{active: lpOverride === 4}" data-action="click" data-fn="setLp" data-value="4">🏙️ Metro</button>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head">
+          <label for="focal">Lens focal length</label>
+          <span class="ctl-val">{{focal}}mm</span>
+        </div>
+        <input id="focal" type="range" min="14" max="85" step="1" data-model="focal.number">
+        <div class="ctl-scale"><span>14mm · wide sky</span><span>85mm · tight frame</span></div>
+      </div>
+
+      <div class="astro-result">
+        <div class="res-main">
+          <div class="res-item">
+            <span class="res-label">Shutter</span>
+            <span class="res-value">{{astro.shutter}}</span>
+          </div>
+          <div class="res-item">
+            <span class="res-label">Aperture</span>
+            <span class="res-value">f/{{astro.N}}</span>
+          </div>
+          <div class="res-item">
+            <span class="res-label">ISO</span>
+            <span class="res-value">{{astro.iso}}</span>
+          </div>
+        </div>
+        <p class="astro-line">🌠 {{astro.darkLine}} · {{astro.moonIcon}} moon {{astro.moonIllum}}%</p>
+        <p class="res-note" data-if="astro.note">⚠️ {{astro.note}}</p>
+      </div>
+      <p class="astro-hint">Star settings: widest aperture (f/2.8 or faster), shutter under the trail limit for your lens, ISO matched to the sky. Wider lens? Drop ISO a stop.</p>
+    </section>
   </main>
 
   <footer class="site-footer">
@@ -204,6 +260,8 @@
         </svg>
         Spektrum
       </a></span>
+      <span class="credit-sep" aria-hidden="true">·</span>
+      <span>LP atlas by <a href="https://djlorenz.github.io/astronomy/lp/" target="_blank" rel="noopener noreferrer">David Lorenz</a></span>
       <span class="credit-sep" aria-hidden="true">·</span>
       <span><a href="https://github.com/D-dezeeuw/bokehbokeh" target="_blank" rel="noopener noreferrer">GitHub</a></span>
     </p>

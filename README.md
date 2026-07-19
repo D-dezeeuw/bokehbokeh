@@ -21,6 +21,12 @@ sliders and one-tap presets for maximum or minimum bokeh.
    shutter speed and warns about handheld blur, ND-filter territory and
    high-ISO noise. While a preset is active, ISO re-solves automatically as
    you scrub through the day.
+5. **Night sky** — reads the zenith light pollution for your location from
+   David Lorenz's [Light Pollution Atlas](https://djlorenz.github.io/astronomy/lp/)
+   tiles (single-pixel canvas lookup, manual Bortle override available) and
+   recommends star settings: trail-free shutter via the 500 rule for your
+   focal length, ISO matched to the sky brightness, plus the night's
+   astronomical-darkness window and moon phase.
 
 Everything runs in the browser — no build step, no backend, no keys.
 Templating/reactivity by [Spektrum](https://www.npmjs.com/package/spektrum)
@@ -57,5 +63,7 @@ serves.
 ## Credits
 
 Weather & geocoding by [Open-Meteo](https://open-meteo.com) · reverse
-geocoding by [BigDataCloud](https://www.bigdatacloud.com) · reactive engine
+geocoding by [BigDataCloud](https://www.bigdatacloud.com) · light pollution
+data from the [Light Pollution Atlas 2024](https://djlorenz.github.io/astronomy/lp/)
+by David Lorenz · reactive engine
 [Spektrum](https://www.npmjs.com/package/spektrum).

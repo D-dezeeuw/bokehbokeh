@@ -6,6 +6,8 @@ import {
   conditionFromWeather, shutterSeconds, snapShutter, pickIso,
   bokehScore, bokehLabel, sunPhase,
   localParts, utcMsAt, fmtTime, parseQuery,
+  LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
+  moonPhase, darknessWindow,
 } from '../lib.js';
 
 test('sunElevation: high at summer noon, below horizon at midnight (Rotterdam)', () => {
@@ -103,6 +105,58 @@ test('time helpers respect the UTC offset', () => {
 test('parseQuery splits city and country', () => {
   assert.deepEqual(parseQuery('Amsterdam, nl'), { name: 'Amsterdam', country: 'NL' });
   assert.deepEqual(parseQuery('Tokyo'), { name: 'Tokyo', country: '' });
+});
+
+test('classifyLpPixel maps atlas hues to zones', () => {
+  assert.equal(classifyLpPixel(0, 0, 0, 0), 0); // transparent = pristine
+  assert.equal(classifyLpPixel(10, 10, 10), 0); // black
+  assert.equal(classifyLpPixel(40, 70, 200), 1); // blue
+  assert.equal(classifyLpPixel(40, 160, 60), 2); // green
+  assert.equal(classifyLpPixel(230, 230, 40), 3); // yellow
+  assert.equal(classifyLpPixel(240, 140, 20), 4); // orange
+  assert.equal(classifyLpPixel(210, 30, 30), 5); // red
+  assert.equal(classifyLpPixel(230, 60, 200), 6); // magenta
+  assert.equal(classifyLpPixel(250, 250, 250), 7); // white core
+});
+
+test('LP zones are ordered dark → bright and map to classes', () => {
+  for (let i = 1; i < LP_ZONES.length; i++) {
+    assert.ok(LP_ZONES[i].sqm < LP_ZONES[i - 1].sqm);
+    assert.ok(LP_ZONES[i].cls >= LP_ZONES[i - 1].cls);
+  }
+  assert.equal(LP_CLASSES.length, 5);
+});
+
+test('trailLimit follows the 500 rule, capped at 30s', () => {
+  assert.equal(trailLimit(20), 25);
+  assert.equal(trailLimit(50), 10);
+  assert.equal(trailLimit(14), 30);
+});
+
+test('astroIso hits the classic astro anchors', () => {
+  // Pristine sky, 20mm f/2.8: the textbook 25s / ISO 3200
+  assert.equal(astroIso(21.94, 2.8, 25).iso, 3200);
+  // Bright metro sky: skyglow saturates fast — base ISO
+  assert.equal(astroIso(17.5, 2.8, 25).iso, 100);
+  // Pristine sky, slow lens, short telephoto shutter: beyond the ISO ladder
+  assert.equal(astroIso(21.94, 4, 6).clipped, true);
+});
+
+test('moonPhase: anchor new moon is dark, +14.77d is full', () => {
+  const newMoon = Date.UTC(2000, 0, 6, 18, 14);
+  assert.ok(moonPhase(newMoon).illum < 2);
+  assert.ok(moonPhase(newMoon + 14.765 * 86400000).illum > 98);
+});
+
+test('darknessWindow: Dutch midsummer has no astro dark, midwinter does', () => {
+  const july = Date.UTC(2026, 6, 19, 12);
+  const summer = darknessWindow(7200, july, 0, 51.92, 4.48);
+  assert.equal(summer.astro, false);
+  assert.ok(summer.deepest > -18 && summer.deepest < -15, `deepest ${summer.deepest}`);
+  const jan = Date.UTC(2026, 0, 15, 12);
+  const winter = darknessWindow(3600, jan, 0, 51.92, 4.48);
+  assert.equal(winter.astro, true);
+  assert.ok(winter.from && winter.to);
 });
 
 test('scales are well-formed', () => {
