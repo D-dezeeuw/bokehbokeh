@@ -56,15 +56,16 @@ const buildWeather = async () => {
 
 /**
  * Zenith light pollution from David Lorenz's Light Pollution Atlas
- * (djlorenz.github.io) — 1024px XYZ tiles, native zoom 2–8, served from
- * GitHub Pages with open CORS. We read the single pixel under the
- * location off a canvas and classify its color into an atlas zone.
+ * (djlorenz.github.io), served from GitHub Pages with open CORS. The
+ * atlas publishes 1024px tiles on the standard XYZ grid at z 0–6 (its
+ * Leaflet overlays use tileSize 1024 with zoomOffset −2, so map zoom 8
+ * maps to URL z 6). We read the single pixel under the location off a
+ * canvas and classify its color into an atlas zone.
  */
 const LP_TILE = (z, x, y) =>
   `https://djlorenz.github.io/astronomy/image_tiles/tiles2024/tile_${z}_${x}_${y}.png`;
 
-const fetchLpZone = async (lat, lon) => {
-  const z = 8;
+const lpZoneAt = async (lat, lon, z) => {
   const n = 2 ** z;
   const xf = ((lon + 180) / 360) * n;
   const latR = (Math.max(-85, Math.min(85, lat)) * Math.PI) / 180;
@@ -84,6 +85,14 @@ const fetchLpZone = async (lat, lon) => {
   ctx.drawImage(img, px, py, 1, 1, 0, 0, 1, 1);
   const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
   return classifyLpPixel(r, g, b, a);
+};
+
+const fetchLpZone = async (lat, lon) => {
+  try {
+    return await lpZoneAt(lat, lon, 6);
+  } catch {
+    return await lpZoneAt(lat, lon, 4); // coarser fallback
+  }
 };
 
 // === Place persistence ===
