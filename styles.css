@@ -95,6 +95,41 @@ body {
 .hero h1 span { font-weight: 300; }
 .hero .tag { margin: 4px 0 0; color: var(--text-dim); font-size: 0.9rem; }
 
+/* === interface level pills === */
+.level-pills {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(10, 6, 5, 0.5);
+}
+.pill {
+  padding: 9px 8px;
+  min-height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: rgba(245, 158, 11, 0.2);
+}
+.pill.active {
+  color: #1a0e02;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--gold) 0%, var(--amber) 100%);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);
+}
+
+/* Tier visibility: .adv appears at Advanced+, .exp only at Expert. */
+.level-0 .adv,
+.level-0 .exp,
+.level-1 .exp { display: none; }
+
 /* === location bar === */
 .loc-bar { display: flex; gap: 10px; }
 

@@ -21,11 +21,20 @@
     <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
   </div>
 
-  <main class="card" data-cloak>
+  <main class="card" data-cloak data-ref="card">
     <header class="hero">
       <h1>Bokeh<span>Bokeh</span></h1>
       <p class="tag">the right settings for your light, instantly.</p>
     </header>
+
+    <nav class="level-pills" aria-label="Interface level">
+      <button type="button" class="pill" :class="{active: uiLevel === 0}"
+        :aria-pressed="uiLevel === 0" data-action="click" data-fn="setLevel" data-value="0">Basic</button>
+      <button type="button" class="pill" :class="{active: uiLevel === 1}"
+        :aria-pressed="uiLevel === 1" data-action="click" data-fn="setLevel" data-value="1">Advanced</button>
+      <button type="button" class="pill" :class="{active: uiLevel === 2}"
+        :aria-pressed="uiLevel === 2" data-action="click" data-fn="setLevel" data-value="2">Expert</button>
+    </nav>
 
     <!-- Location -->
     <div class="loc-bar">
@@ -98,7 +107,7 @@
     </section>
 
     <!-- Weather conditions -->
-    <section class="conditions">
+    <section class="conditions adv">
       <header class="sec-head">
         <h2>Conditions</h2>
         <span class="sec-sub" data-if="cond.auto && cond.cloud !== null && cond.cloud !== undefined">auto · {{cond.cloud}}% cloud</span>
@@ -116,7 +125,7 @@
     </section>
 
     <!-- Photo light check -->
-    <section class="scene-sec">
+    <section class="scene-sec adv">
       <header class="sec-head">
         <h2>Light check</h2>
         <span class="sec-sub" data-if="sceneView && sceneView.exif">measured · EXIF + render</span>
@@ -168,7 +177,7 @@
         <div class="scene-info">
           <span class="scene-label">{{sceneView.icon}} {{sceneView.label}}</span>
           <span class="scene-ev">EV {{sceneView.ev}}<span data-if="!sceneView.exif"> (approx.)</span></span>
-          <div class="scene-stats">
+          <div class="scene-stats exp">
             <span class="stat" data-if="sceneView.exif">camera EV {{sceneView.rawEv}}</span>
             <span class="stat" data-if="sceneView.exif && sceneView.renderLabel !== '+0'">render {{sceneView.renderLabel}} EV</span>
             <span class="stat">brightness {{sceneView.mean}}/255</span>
@@ -179,7 +188,7 @@
         </div>
         <button type="button" class="scene-clear" data-action="click" data-fn="clearScene" aria-label="Clear photo">✕</button>
       </div>
-      <canvas class="scene-hist" data-ref="sceneHist" data-if="sceneView" width="320" height="44" aria-label="Luminance histogram"></canvas>
+      <canvas class="scene-hist exp" data-ref="sceneHist" data-if="sceneView" width="320" height="44" aria-label="Luminance histogram"></canvas>
       <div class="chips" role="group" aria-label="Scene type" data-if="sceneView">
         <button type="button" class="chip" :class="{active: scene.cls === 0}" data-action="click" data-fn="setScene" data-value="0">☀️ Sun</button>
         <button type="button" class="chip" :class="{active: scene.cls === 1}" data-action="click" data-fn="setScene" data-value="1">⛅ Overcast</button>
@@ -195,10 +204,10 @@
     <section class="result" data-if="exposure">
       <div class="res-light">
         <span>{{sun.phaseIcon}} {{sun.phase}}</span>
-        <span class="res-sep">·</span>
-        <span>sun {{sun.elev}}°</span>
-        <span class="res-sep">·</span>
-        <span>EV {{exposure.ev}}</span>
+        <span class="res-sep adv">·</span>
+        <span class="adv">sun {{sun.elev}}°</span>
+        <span class="res-sep adv">·</span>
+        <span class="adv">EV {{exposure.ev}}</span>
         <span class="res-metered" data-if="meteredEV !== null">📸 metered</span>
       </div>
       <div class="res-main">
@@ -234,7 +243,7 @@
     </section>
 
     <!-- Sliders -->
-    <section class="sliders">
+    <section class="sliders adv">
       <div class="ctl">
         <div class="ctl-head">
           <label for="aperture">Aperture</label>
@@ -268,7 +277,7 @@
     </section>
 
     <!-- Night sky / astro -->
-    <section class="astro" data-if="astro">
+    <section class="astro exp" data-if="astro">
       <header class="sec-head">
         <h2>Night sky</h2>
         <span class="sec-sub" data-if="lp.auto && lp.known">auto · LP atlas 2024</span>

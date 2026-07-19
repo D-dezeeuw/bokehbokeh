@@ -39,6 +39,13 @@ sliders and one-tap presets for maximum or minimum bokeh.
    focal length, ISO matched to the sky brightness, plus the night's
    astronomical-darkness window and moon phase.
 
+A **Basic / Advanced / Expert** pill switcher keeps it approachable:
+Basic shows location, time, presets and the answer; Advanced adds weather
+override chips, the aperture/ISO sliders and the photo light check;
+Expert adds the measurement internals (histogram, marker chips) and the
+Night sky section. The chosen level — and the last photo analysis — are
+remembered across visits.
+
 Everything runs in the browser — no build step, no backend, no keys.
 Templating/reactivity by [Spektrum](https://www.npmjs.com/package/spektrum)
 straight from the CDN.
