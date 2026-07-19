@@ -8,7 +8,7 @@ import {
   localParts, utcMsAt, fmtTime, parseQuery,
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
-  analyzePixels, parseExif, exifEV, SCENES, classifyScene,
+  analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
 } from '../lib.js';
 
 /** Build a solid-color ImageData-shaped object. */
@@ -254,6 +254,33 @@ test('parseExif reads the three exposure tags; garbage returns null', () => {
 test('exifEV: sunny-16 photo measures EV 15', () => {
   assert.ok(Math.abs(exifEV({ N: 16, t: 1 / 125, iso: 100 }) - 15) < 0.1);
   assert.equal(exifEV({ N: null, t: 1 / 125, iso: 100 }), null);
+});
+
+test('exposureOffset: mid-gray render is neutral, dark/bright renders shift stops', () => {
+  assert.ok(Math.abs(exposureOffset(118)) <= 0.1, `mid-gray ${exposureOffset(118)}`);
+  assert.ok(Math.abs(exposureOffset(60) - -2.1) < 0.2, `dark ${exposureOffset(60)}`);
+  assert.ok(Math.abs(exposureOffset(200) - 1.7) < 0.2, `bright ${exposureOffset(200)}`);
+  // clipping hides extra range beyond the rails
+  assert.ok(exposureOffset(140, 12, 0) > exposureOffset(140));
+  assert.ok(exposureOffset(100, 0, 12) < exposureOffset(100));
+  // artistic extremes stay bounded
+  assert.equal(exposureOffset(5), -3);
+  assert.equal(exposureOffset(255, 50, 0), 3);
+});
+
+test('EXIF + render combine into the true scene verdict', () => {
+  // Dim room: camera maxed out (1/60 f/2 ISO 1600 → assumes EV 3.9) but the
+  // photo STILL came out dark (mean 50) → real scene ≈ EV 1.2 → dim class.
+  const rawDim = exifEV({ N: 2, t: 1 / 60, iso: 1600 });
+  const evDim = rawDim + exposureOffset(50);
+  assert.ok(evDim < 2, `dim scene ev ${evDim}`);
+  assert.equal(classifyScene({ warmth: 1.3 }, evDim), 4);
+  // Beach: sunny-16 settings AND a frame full of bright sand (mean 200)
+  // → real scene ≈ EV 16.7, brighter than the settings alone suggest.
+  const rawBeach = exifEV({ N: 16, t: 1 / 125, iso: 100 });
+  const evBeach = rawBeach + exposureOffset(200);
+  assert.ok(evBeach > 16, `beach scene ev ${evBeach}`);
+  assert.equal(classifyScene({ warmth: 1 }, evBeach), 0);
 });
 
 test('classifyScene: EXIF EV bands with warmth tiebreaks', () => {
