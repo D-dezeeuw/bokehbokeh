@@ -277,6 +277,165 @@ export const darknessWindow = (offsetSec, baseUtcMs, dayOffset, lat, lon) => {
   };
 };
 
+// === Photo light check ===
+
+/**
+ * Pixel statistics for a (downscaled) ImageData-shaped object.
+ * All markers are resolution-independent:
+ *  - mean:     average luma 0–255
+ *  - contrast: luma standard deviation / 128
+ *  - warmth:   mean R / mean B (tungsten light ≫ 1, daylight ≈ 1)
+ *  - sat:      average HSV-style saturation 0–1
+ *  - clipHi/clipLo: % of pixels at the histogram ends
+ *  - topRatio: top-30%-of-frame luma vs whole frame (open sky ≫ 1)
+ *  - hist:     32-bin luma histogram
+ */
+export const analyzePixels = ({ data, width, height }) => {
+  const n = width * height;
+  const topRows = Math.max(1, Math.floor(height * 0.3));
+  let sumY = 0;
+  let sumY2 = 0;
+  let sumR = 0;
+  let sumB = 0;
+  let sumSat = 0;
+  let topSum = 0;
+  let topN = 0;
+  let hi = 0;
+  let lo = 0;
+  const hist = new Array(32).fill(0);
+  for (let i = 0; i < n; i++) {
+    const o = i * 4;
+    const r = data[o];
+    const g = data[o + 1];
+    const b = data[o + 2];
+    const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    sumY += y;
+    sumY2 += y * y;
+    sumR += r;
+    sumB += b;
+    const mx = Math.max(r, g, b);
+    sumSat += mx === 0 ? 0 : (mx - Math.min(r, g, b)) / mx;
+    if (y > 248) hi++;
+    if (y < 8) lo++;
+    hist[Math.min(31, y >> 3)]++;
+    if (i < topRows * width) {
+      topSum += y;
+      topN++;
+    }
+  }
+  const mean = sumY / n;
+  const std = Math.sqrt(Math.max(0, sumY2 / n - mean * mean));
+  const r2 = (x) => Math.round(x * 100) / 100;
+  return {
+    mean: Math.round(mean),
+    contrast: r2(std / 128),
+    warmth: r2((sumR + 1) / (sumB + 1)),
+    sat: r2(sumSat / n),
+    clipHi: Math.round((hi / n) * 1000) / 10,
+    clipLo: Math.round((lo / n) * 1000) / 10,
+    topRatio: r2(topSum / Math.max(1, topN) / Math.max(1, mean)),
+    hist,
+  };
+};
+
+/**
+ * Minimal JPEG EXIF reader for the three exposure tags. Returns
+ * {t, N, iso} (missing tags null) or null when there is no parsable
+ * EXIF (PNG, HEIC, stripped files).
+ */
+export const parseExif = (buffer) => {
+  try {
+    const v = new DataView(buffer);
+    if (v.byteLength < 12 || v.getUint16(0) !== 0xffd8) return null;
+    let off = 2;
+    while (off + 10 < v.byteLength) {
+      const marker = v.getUint16(off);
+      if ((marker & 0xff00) !== 0xff00) return null;
+      const size = v.getUint16(off + 2);
+      if (marker === 0xffe1 && v.getUint32(off + 4) === 0x45786966) {
+        return parseTiff(v, off + 10);
+      }
+      if (marker === 0xffda) return null; // start of scan — no EXIF ahead
+      off += 2 + size;
+    }
+  } catch {}
+  return null;
+};
+
+const parseTiff = (v, base) => {
+  const le = v.getUint16(base) === 0x4949; // "II" little-endian
+  const u16 = (o) => v.getUint16(base + o, le);
+  const u32 = (o) => v.getUint32(base + o, le);
+  const rational = (o) => {
+    const num = u32(o);
+    const den = u32(o + 4);
+    return den ? num / den : null;
+  };
+  const out = {};
+  const readIfd = (ifd) => {
+    const count = u16(ifd);
+    for (let i = 0; i < count; i++) {
+      const e = ifd + 2 + i * 12;
+      const tag = u16(e);
+      const type = u16(e + 2);
+      if (tag === 0x8769) out.exifIfd = u32(e + 8); // ExifIFD pointer
+      else if (tag === 0x829a && type === 5) out.t = rational(u32(e + 8));
+      else if (tag === 0x829d && type === 5) out.N = rational(u32(e + 8));
+      else if (tag === 0x8827) out.iso = type === 3 ? u16(e + 8) : u32(e + 8);
+    }
+  };
+  readIfd(u32(4));
+  if (out.exifIfd) readIfd(out.exifIfd);
+  return out.t || out.N || out.iso
+    ? { t: out.t ?? null, N: out.N ?? null, iso: out.iso ?? null }
+    : null;
+};
+
+/** Measured scene EV at ISO 100 from EXIF exposure values — a real light meter. */
+export const exifEV = ({ N, t, iso }) => {
+  if (!N || !t || !iso) return null;
+  return Math.round(Math.log2((N * N) / (t * (iso / 100))) * 10) / 10;
+};
+
+/** Scene classes for the photo light check, with representative EVs. */
+export const SCENES = [
+  { key: 'sun', icon: '☀️', short: 'Sun', label: 'Outdoors · bright sun', ev: 14.5, tip: 'Hard light and deep shadows — watch for blown highlights.' },
+  { key: 'overcast', icon: '⛅', short: 'Overcast', label: 'Outdoors · overcast', ev: 12, tip: 'Soft, even light — flattering for portraits.' },
+  { key: 'shade', icon: '🌳', short: 'Shade', label: 'Outdoors · shade / dusk', ev: 9, tip: 'Gentle light that fades fast — keep an eye on your shutter.' },
+  { key: 'indoor', icon: '💡', short: 'Indoors', label: 'Indoors · well lit', ev: 6, tip: 'Move close to window light; expect a warm cast from bulbs.' },
+  { key: 'dim', icon: '🕯️', short: 'Dim', label: 'Indoors · dim / night', ev: 3, tip: 'Open wide, raise ISO, brace the camera or use a tripod.' },
+];
+
+/**
+ * Classify a photo into a SCENES index. With an EXIF EV the light level
+ * is measured (bands, with color warmth splitting indoor/outdoor at the
+ * boundaries). Without EXIF the camera has already normalized exposure,
+ * so we judge by look: sky-bright top, cool colors, saturation and
+ * clipped highlights vote "outdoors"; a strong warm cast votes indoors.
+ */
+export const classifyScene = (m, ev = null) => {
+  if (ev != null) {
+    if (ev >= 13.5) return 0;
+    if (ev >= 10.5) return 1;
+    if (ev >= 7.5) return (m?.warmth ?? 1) > 1.28 ? 3 : 2;
+    if (ev >= 4.5) return (m?.warmth ?? 1.2) < 1.05 ? 2 : 3;
+    return 4;
+  }
+  if (m.mean < 60) return 4;
+  let outdoor = 0;
+  if (m.topRatio > 1.12) outdoor++;
+  if (m.warmth < 1.12) outdoor++;
+  if (m.sat > 0.3) outdoor++;
+  if (m.clipHi > 1.5) outdoor++;
+  if (m.warmth > 1.3) outdoor -= 2;
+  if (outdoor >= 2) {
+    if (m.contrast >= 0.34 || m.clipHi > 3) return 0;
+    if (m.mean >= 115) return 1;
+    return 2;
+  }
+  return m.mean < 95 ? 4 : 3;
+};
+
 // === Time helpers ===
 
 /** Break a UTC timestamp into wall-clock parts at a UTC offset (seconds). */
