@@ -22,11 +22,14 @@ sliders and one-tap presets for maximum or minimum bokeh.
    high-ISO noise. While a preset is active, ISO re-solves automatically as
    you scrub through the day.
 5. **Light check** — snap or pick a photo (analyzed entirely on-device,
-   never uploaded): EXIF exposure data turns it into a real light meter
-   (measured scene EV), with pixel markers (brightness, contrast, warmth,
-   saturation, clipping, histogram) classifying the scene — bright sun,
-   overcast, shade, indoors, dim — as a fallback and sanity check. The
-   metered EV drives the main settings until cleared.
+   never uploaded). EXIF tells which exposure the camera applied; the
+   pixels tell how bright the frame actually rendered — combining both
+   gives the true scene EV (a dark-rendered dim room reads darker than
+   its settings imply, a blown beach reads brighter). Pixel markers
+   (brightness, contrast, warmth, saturation, clipping, histogram)
+   classify the scene — bright sun, overcast, shade, indoors, dim — and
+   stand alone when there's no EXIF. The metered EV drives the main
+   settings until cleared.
 6. **Night sky** — reads the zenith light pollution for your location from
    David Lorenz's [Light Pollution Atlas](https://djlorenz.github.io/astronomy/lp/)
    tiles (single-pixel canvas lookup, manual Bortle override available) and

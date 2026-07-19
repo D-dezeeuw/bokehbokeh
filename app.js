@@ -9,7 +9,7 @@ import {
   localParts, utcMsAt, fmtTime, parseQuery,
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
-  analyzePixels, parseExif, exifEV, SCENES, classifyScene,
+  analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
 } from './lib.js';
 
 // === External services ===
@@ -268,6 +268,8 @@ computed('sceneView', ['scene'], (s) => {
     ...c,
     ev: sc.ev,
     exif: sc.exif,
+    rawEv: sc.rawEv,
+    renderLabel: sc.offset == null ? '' : `${sc.offset >= 0 ? '+' : ''}${sc.offset}`,
     mean: sc.markers.mean,
     contrast: sc.markers.contrast,
     warmth: sc.markers.warmth,
@@ -424,12 +426,12 @@ defineFn('analyzePhoto', async (el) => {
   if (!file) return;
   setValue('sceneError', '');
   try {
-    // EXIF first: shutter/aperture/ISO make the photo a real light meter.
-    let ev = null;
-    let exif = null;
+    // EXIF says which exposure the camera applied; only combined with
+    // how bright the frame actually rendered do we know the scene light.
+    let rawEv = null;
     try {
-      exif = parseExif(await file.arrayBuffer());
-      if (exif) ev = exifEV(exif);
+      const exif = parseExif(await file.arrayBuffer());
+      if (exif) rawEv = exifEV(exif);
     } catch {}
 
     const url = URL.createObjectURL(file);
@@ -447,8 +449,17 @@ defineFn('analyzePhoto', async (el) => {
     ctx.drawImage(img, 0, 0, w, h);
     const markers = analyzePixels(ctx.getImageData(0, 0, w, h));
 
+    // A dark render means less scene light than the settings imply; a
+    // bright render (beach whites) means more. Correct the EXIF EV by
+    // the rendered offset before classifying.
+    let ev = null;
+    let offset = null;
+    if (rawEv != null) {
+      offset = exposureOffset(markers.mean, markers.clipHi, markers.clipLo);
+      ev = Math.round((rawEv + offset) * 10) / 10;
+    }
     const cls = classifyScene(markers, ev);
-    const scene = { cls, ev: ev ?? SCENES[cls].ev, exif: ev != null, markers };
+    const scene = { cls, ev: ev ?? SCENES[cls].ev, exif: ev != null, rawEv, offset, markers };
     setValue('scene', scene);
     setValue('meteredEV', scene.ev);
     spektrum.tick();

@@ -119,7 +119,7 @@
     <section class="scene-sec">
       <header class="sec-head">
         <h2>Light check</h2>
-        <span class="sec-sub" data-if="sceneView && sceneView.exif">measured from photo EXIF</span>
+        <span class="sec-sub" data-if="sceneView && sceneView.exif">measured · EXIF + render</span>
         <span class="sec-sub" data-if="sceneView && !sceneView.exif">estimated from photo look</span>
       </header>
       <input id="photoInput" class="file-input" type="file" accept="image/*"
@@ -136,6 +136,8 @@
           <span class="scene-label">{{sceneView.icon}} {{sceneView.label}}</span>
           <span class="scene-ev">EV {{sceneView.ev}}<span data-if="!sceneView.exif"> (approx.)</span></span>
           <div class="scene-stats">
+            <span class="stat" data-if="sceneView.exif">camera EV {{sceneView.rawEv}}</span>
+            <span class="stat" data-if="sceneView.exif && sceneView.renderLabel !== '+0'">render {{sceneView.renderLabel}} EV</span>
             <span class="stat">brightness {{sceneView.mean}}/255</span>
             <span class="stat">contrast {{sceneView.contrast}}</span>
             <span class="stat">warmth {{sceneView.warmth}}</span>

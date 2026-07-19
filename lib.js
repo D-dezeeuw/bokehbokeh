@@ -391,10 +391,28 @@ const parseTiff = (v, base) => {
     : null;
 };
 
-/** Measured scene EV at ISO 100 from EXIF exposure values — a real light meter. */
+/** Scene EV at ISO 100 implied by EXIF exposure values — what the camera
+ *  ASSUMED, i.e. only correct if the photo rendered at mid-gray. */
 export const exifEV = ({ N, t, iso }) => {
   if (!N || !t || !iso) return null;
   return Math.round(Math.log2((N * N) / (t * (iso / 100))) * 10) / 10;
+};
+
+/**
+ * How far the photo actually rendered from mid-gray, in stops. The EXIF
+ * EV assumes the exposure landed on 18% gray (sRGB luma ≈ 118); a photo
+ * that came out darker means the scene had LESS light than the settings
+ * imply (dim room the camera couldn't lift), brighter means MORE (beach
+ * whites pushing the frame up). Clipped ends hide additional range, so
+ * heavy clipping nudges the estimate further. Clamped to ±3 stops so
+ * silhouettes and other artistic exposures can't run away.
+ */
+export const exposureOffset = (mean, clipHi = 0, clipLo = 0) => {
+  const lin = Math.pow(Math.max(1, mean) / 255, 2.2); // sRGB → linear (γ2.2)
+  let off = Math.log2(lin / 0.18);
+  if (clipHi > 8) off += 0.5;
+  if (clipLo > 8) off -= 0.5;
+  return Math.max(-3, Math.min(3, Math.round(off * 10) / 10));
 };
 
 /** Scene classes for the photo light check, with representative EVs. */
