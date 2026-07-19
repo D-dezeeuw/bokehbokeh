@@ -7,6 +7,8 @@ import {
   shutterSeconds, snapShutter, pickIso,
   bokehScore, bokehLabel, sunPhase,
   localParts, utcMsAt, fmtTime, parseQuery,
+  LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
+  moonPhase, darknessWindow,
 } from './lib.js';
 
 // === External services ===
@@ -52,6 +54,38 @@ const buildWeather = async () => {
   };
 };
 
+/**
+ * Zenith light pollution from David Lorenz's Light Pollution Atlas
+ * (djlorenz.github.io) — 1024px XYZ tiles, native zoom 2–8, served from
+ * GitHub Pages with open CORS. We read the single pixel under the
+ * location off a canvas and classify its color into an atlas zone.
+ */
+const LP_TILE = (z, x, y) =>
+  `https://djlorenz.github.io/astronomy/image_tiles/tiles2024/tile_${z}_${x}_${y}.png`;
+
+const fetchLpZone = async (lat, lon) => {
+  const z = 8;
+  const n = 2 ** z;
+  const xf = ((lon + 180) / 360) * n;
+  const latR = (Math.max(-85, Math.min(85, lat)) * Math.PI) / 180;
+  const yf = ((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2) * n;
+  const x = Math.min(n - 1, Math.max(0, Math.floor(xf)));
+  const y = Math.min(n - 1, Math.max(0, Math.floor(yf)));
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = LP_TILE(z, x, y);
+  await img.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const px = Math.min(img.naturalWidth - 1, Math.floor((xf - x) * img.naturalWidth));
+  const py = Math.min(img.naturalHeight - 1, Math.floor((yf - y) * img.naturalHeight));
+  ctx.drawImage(img, px, py, 1, 1, 0, 0, 1, 1);
+  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+  return classifyLpPixel(r, g, b, a);
+};
+
 // === Place persistence ===
 
 const PLACE_KEY = 'bokehbokeh:place';
@@ -87,6 +121,9 @@ setValue('wxOverride', -1); // -1 = auto (from forecast)
 setValue('preset', 'bokeh');
 setValue('geoStatus', 'idle');
 setValue('searchError', '');
+setValue('lpZone', null); // atlas zone index once fetched
+setValue('lpOverride', -1); // -1 = auto (from atlas)
+setValue('focal', 20);
 spektrum.tick();
 
 // addAsync owns `wx.{loading,data,error}` and auto-runs once on registration.
@@ -163,6 +200,51 @@ computed('sunTimes', ['wx.data', 'dayIndex'], (s) => {
   const toPct = (hm) =>
     hm ? `${(((+hm.slice(0, 2)) * 60 + (+hm.slice(3, 5))) / 1440 * 100).toFixed(1)}%` : null;
   return { rise, set, risePct: toPct(rise), setPct: toPct(set) };
+});
+
+computed('lp', ['lpZone', 'lpOverride'], (s) => {
+  const ov = s.lpOverride ?? -1;
+  if (ov >= 0) {
+    const c = LP_CLASSES[ov];
+    return { ...c, auto: false, known: true };
+  }
+  const zone = s.lpZone;
+  if (zone == null) {
+    // Auto not available (tile unreachable / no fix yet): assume suburban.
+    return { ...LP_CLASSES[2], auto: true, known: false };
+  }
+  const zi = LP_ZONES[zone];
+  const c = LP_CLASSES[zi.cls];
+  return { ...c, sqm: zi.sqm, bortle: zi.bortle, auto: true, known: true };
+});
+
+computed('astro', ['lp', 'focal', 'place', 'wx.data', 'dayIndex'], (s) => {
+  const p = s.place;
+  if (p?.lat == null) return null;
+  const off = s.wx?.data?.offsetSec ?? browserOffsetSec();
+  const day = s.dayIndex ?? 0;
+  const focal = s.focal ?? 20;
+  const N = 2.8;
+  const t = trailLimit(focal);
+  const sqm = s.lp?.sqm ?? 20.9;
+  const { iso, clipped } = astroIso(sqm, N, t);
+  const win = darknessWindow(off, Date.now(), day, p.lat, p.lon);
+  // Moon checked at the midnight that follows the selected day.
+  const moon = moonPhase(utcMsAt(off, Date.now(), day + 1, 0));
+  const darkLine = win.astro
+    ? `Dark sky ${win.from}–${win.to}`
+    : `No full darkness — deepest ${win.deepest}° at ${win.deepestAt}`;
+  const notes = [];
+  if (moon.illum >= 60) notes.push(`${moon.icon} Bright moon (${moon.illum}%) washes out faint stars.`);
+  if (clipped) notes.push('Needs more than ISO 12800 — use a star tracker or stack frames.');
+  if (sqm < 19.3) notes.push('Bright skyglow here — for the Milky Way, head somewhere darker.');
+  return {
+    shutter: t >= 10 ? `${Math.round(t)}s` : `${t}s`,
+    N, iso, darkLine,
+    moonIcon: moon.icon,
+    moonIllum: moon.illum,
+    note: notes.join(' '),
+  };
 });
 
 // === Presets & auto-solve ===
@@ -278,6 +360,8 @@ defineFn('unpreset', () => {
   if (appState.preset !== 'custom') setValue('preset', 'custom');
 });
 
+defineFn('setLp', (_el, _state, _delta, value) => setValue('lpOverride', value));
+
 defineFn('retryWx', () => refetchWx?.());
 
 // === Watches ===
@@ -291,6 +375,21 @@ watch(['place'], () => {
     refetchWx();
   }
 });
+
+// Light pollution lookup per unique lat/lon. Failure (offline, tile
+// missing) leaves lpZone null → the lp computed reports auto-unavailable
+// and the manual chips take over.
+let lastLpKey = '';
+const refreshLp = () => {
+  const p = appState.place;
+  const k = wxKey(p);
+  if (!k || k === lastLpKey) return;
+  lastLpKey = k;
+  fetchLpZone(p.lat, p.lon)
+    .then((zone) => setValue('lpZone', zone))
+    .catch(() => setValue('lpZone', null));
+};
+watch(['place'], refreshLp);
 
 // Keep the search box mirroring the resolved place (unless the user is typing).
 watch(['place'], () => {
@@ -347,6 +446,7 @@ run();
 paintBokeh();
 paintSunTrack();
 paintIso();
+refreshLp(); // restored place doesn't fire the place watch
 
 // First visit: ask the browser for a location. Return visits reuse the
 // saved place (the 📍 button re-asks at any time).

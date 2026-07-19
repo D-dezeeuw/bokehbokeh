@@ -485,6 +485,69 @@ input[type="range"]::-moz-range-thumb {
   backdrop-filter: blur(4px);
 }
 
+/* === night sky / astro === */
+.astro {
+  position: relative;
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  border-radius: 16px;
+  padding: 18px 20px;
+  background:
+    radial-gradient(1px 1px at 12% 22%, rgba(255, 255, 255, 0.9) 50%, transparent 51%),
+    radial-gradient(1px 1px at 33% 68%, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 51% 15%, rgba(255, 255, 255, 0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 67% 45%, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 82% 25%, rgba(255, 255, 255, 0.7) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 92% 62%, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(1px 1px at 24% 85%, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1px 1px at 74% 88%, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(ellipse at 50% -40%, rgba(124, 92, 255, 0.22) 0%, transparent 70%),
+    linear-gradient(180deg, #0b0820 0%, #120a26 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.astro .sec-head { margin-bottom: 0; }
+.astro .sec-head h2 { color: #a99ae0; }
+
+.lp-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lp-icon { font-size: 1.8rem; }
+.lp-text { display: flex; flex-direction: column; gap: 2px; }
+.lp-label { font-weight: 700; }
+.lp-sub { font-size: 0.78rem; color: #a99ae0; }
+
+.astro .chip { background: rgba(124, 92, 255, 0.07); border-color: rgba(124, 92, 255, 0.3); }
+.astro .chip:hover { border-color: #9d84ff; }
+.astro .chip.active {
+  color: #d9ccff;
+  border-color: #9d84ff;
+  background: rgba(124, 92, 255, 0.2);
+}
+
+.astro input[type="range"]::-webkit-slider-runnable-track {
+  background: linear-gradient(90deg, rgba(124, 92, 255, 0.6), rgba(124, 92, 255, 0.15));
+}
+.astro input[type="range"]::-moz-range-track {
+  background: linear-gradient(90deg, rgba(124, 92, 255, 0.6), rgba(124, 92, 255, 0.15));
+}
+.astro .ctl-val { color: #d9ccff; }
+
+.astro-result { text-align: center; }
+.astro-result .res-value { color: #d9ccff; text-shadow: 0 0 18px rgba(124, 92, 255, 0.45); }
+.astro-line {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  color: #a99ae0;
+}
+.astro-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
 /* === footer === */
 .site-footer {
   position: relative;
