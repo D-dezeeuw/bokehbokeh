@@ -40,9 +40,9 @@ Or open `index.html` with any static file server.
 Live at **<https://d-dezeeuw.github.io/bokehbokeh/>**.
 
 The app is a single `index.html` at the repo root with relative asset
-paths. Every push to `main` runs the tests and redeploys via
-`.github/workflows/pages.yml` (GitHub Actions Pages deployment — it
-enables Pages on first run, no manual settings needed).
+paths. Every push to `main` runs the tests and then mirrors `main` to the
+`gh-pages` branch (`.github/workflows/pages.yml`), which GitHub Pages
+serves.
 
 ## Files
 
