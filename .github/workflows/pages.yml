@@ -1,14 +1,18 @@
 name: Deploy to GitHub Pages
 
+# Publishes by mirroring main to the gh-pages branch, which GitHub Pages
+# serves (branch source, / root). The GITHUB_TOKEN cannot enable Pages or
+# create Actions-source deployments on this repo ("Resource not accessible
+# by integration"), but it can push branches — and the gh-pages branch is
+# what switched Pages on in the first place.
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
@@ -27,16 +31,7 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Mirror main to gh-pages
+        run: git push --force origin HEAD:gh-pages
