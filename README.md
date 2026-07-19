@@ -37,11 +37,12 @@ Or open `index.html` with any static file server.
 
 ## Hosting on GitHub Pages
 
-The app is a single `index.html` at the repo root with relative asset paths:
+Live at **<https://d-dezeeuw.github.io/bokehbokeh/>**.
 
-1. GitHub → **Settings → Pages**
-2. Source: **Deploy from a branch**, branch `main`, folder `/ (root)`
-3. Done — it will be served at `https://<user>.github.io/bokehbokeh/`
+The app is a single `index.html` at the repo root with relative asset
+paths. Every push to `main` runs the tests and redeploys via
+`.github/workflows/pages.yml` (GitHub Actions Pages deployment — it
+enables Pages on first run, no manual settings needed).
 
 ## Files
 
