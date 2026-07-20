@@ -249,6 +249,77 @@ export const moonPhase = (utcMs) => {
 };
 
 /**
+ * Horizontal coordinates (degrees) for a fixed equatorial position.
+ * Same sidereal-time core as sunElevation; azimuth is from North,
+ * clockwise (N 0° → E 90° → S 180° → W 270°).
+ */
+export const altAz = (utcMs, lat, lon, raDeg, decDeg) => {
+  const n = utcMs / 86400000 - 10957.5;
+  const gmst = (280.46061837 + 360.98564736629 * n) % 360;
+  const ha = (gmst + lon - raDeg) * RAD;
+  const dec = decDeg * RAD;
+  const latR = lat * RAD;
+  const sinAlt = Math.sin(latR) * Math.sin(dec) + Math.cos(latR) * Math.cos(dec) * Math.cos(ha);
+  const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+  const cosAz = (Math.sin(dec) - Math.sin(latR) * sinAlt) / (Math.cos(latR) * Math.cos(alt) || 1e-9);
+  let az = Math.acos(Math.max(-1, Math.min(1, cosAz))) / RAD;
+  if (Math.sin(ha) > 0) az = 360 - az;
+  return { alt: alt / RAD, az };
+};
+
+/** The Milky Way's galactic core: RA 17h45m40s, Dec −29.01°. */
+export const galacticCore = (utcMs, lat, lon) => altAz(utcMs, lat, lon, 266.417, -29.008);
+
+export const compass = (az) =>
+  ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][
+    Math.round(az / 22.5) % 16
+  ];
+
+/**
+ * Scan the night after the selected day for when the galactic core is
+ * photographable: core ≥ 5° up while the sun is ≤ −15°. Also reports
+ * the core's best altitude during any sort of darkness (sun ≤ −6°) so
+ * high latitudes get an honest "stays too low here" instead of nothing.
+ */
+export const coreWindow = (offsetSec, baseUtcMs, dayOffset, lat, lon) => {
+  let from = null;
+  let to = null;
+  let peak = -90;
+  let peakAt = 720;
+  let peakAz = 180;
+  let maxAlt = -90;
+  for (let m = 720; m < 2160; m += 10) {
+    const utc = utcMsAt(offsetSec, baseUtcMs, dayOffset, m);
+    const sunE = sunElevation(utc, lat, lon);
+    if (sunE > -6) continue;
+    const core = galacticCore(utc, lat, lon);
+    if (core.alt > maxAlt) maxAlt = core.alt;
+    if (core.alt >= 5 && sunE <= -15) {
+      if (from === null) from = m;
+      to = m;
+      if (core.alt > peak) {
+        peak = core.alt;
+        peakAt = m;
+        peakAz = core.az;
+      }
+    }
+  }
+  const fmt = (m) => fmtTime(((m % 1440) + 1440) % 1440);
+  if (from !== null) {
+    return {
+      visible: true,
+      from: fmt(from),
+      to: fmt(to),
+      peakAlt: Math.round(peak),
+      peakAz: Math.round(peakAz),
+      peakAt: fmt(peakAt),
+      maxAlt: Math.round(maxAlt),
+    };
+  }
+  return { visible: false, maxAlt: Math.round(maxAlt) };
+};
+
+/**
  * Scan the night following the selected day (local noon → next noon)
  * for astronomical darkness (sun ≤ -18°). Falls back to reporting the
  * deepest twilight when the sun never gets that low (midsummer at

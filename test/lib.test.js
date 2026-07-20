@@ -11,6 +11,7 @@ import {
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
   meterAngle, trackEV, streakAmount, motionLabel, fmtSeconds,
   dofCalc, fmtDist,
+  altAz, galacticCore, compass, coreWindow,
 } from '../lib.js';
 
 /** Build a solid-color ImageData-shaped object. */
@@ -377,6 +378,40 @@ test('meterAngle maps the EV range onto the dial and clamps the ends', () => {
   assert.equal(meterAngle(18), 80);
   assert.equal(meterAngle(-10), -80);
   assert.equal(meterAngle(25), 80);
+});
+
+test('altAz: Polaris sits at the observer latitude, due north', () => {
+  // Polaris: RA 2h31m ≈ 37.95°, Dec +89.26°, any time from Rotterdam
+  const p = altAz(Date.UTC(2026, 6, 19, 23), 51.92, 4.48, 37.95, 89.26);
+  assert.ok(Math.abs(p.alt - 51.92) < 1.2, `alt ${p.alt}`);
+  assert.ok(p.az < 3 || p.az > 357, `az ${p.az}`);
+});
+
+test('galacticCore culmination altitude ≈ 90 − |lat − dec|', () => {
+  // From 52°N the core can never top ~9° — a real Dutch astro problem.
+  let best = -90;
+  for (let h = 0; h < 48; h++) {
+    best = Math.max(best, galacticCore(Date.UTC(2026, 6, 19) + h * 1800000, 51.92, 4.48).alt);
+  }
+  assert.ok(best > 7 && best < 10.5, `Rotterdam core max ${best}`);
+  // From Tenerife (28.3°N) it rides ~33° high — Milky Way country.
+  best = -90;
+  for (let h = 0; h < 48; h++) {
+    best = Math.max(best, galacticCore(Date.UTC(2026, 6, 19) + h * 1800000, 28.3, -16.5).alt);
+  }
+  assert.ok(best > 31 && best < 34.5, `Tenerife core max ${best}`);
+});
+
+test('coreWindow: visible from Tenerife in spring, honestly low from Rotterdam', () => {
+  const tf = coreWindow(3600, Date.UTC(2026, 3, 20, 12), 0, 28.3, -16.5);
+  assert.equal(tf.visible, true);
+  assert.ok(tf.peakAlt >= 20, `peak ${tf.peakAlt}`);
+  assert.ok(tf.peakAz > 120 && tf.peakAz < 240, `az ${tf.peakAz}`); // southern sky
+  const nl = coreWindow(3600, Date.UTC(2026, 0, 15, 12), 0, 51.92, 4.48);
+  assert.equal(nl.visible, false); // core hugs the horizon at 52°N
+  assert.equal(compass(0), 'N');
+  assert.equal(compass(180), 'S');
+  assert.equal(compass(202), 'SSW');
 });
 
 test('scales are well-formed', () => {

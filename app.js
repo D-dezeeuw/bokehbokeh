@@ -11,7 +11,7 @@ import {
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
   meterAngle, trackEV, streakAmount, motionLabel, fmtSeconds,
-  dofCalc, fmtDist,
+  dofCalc, fmtDist, coreWindow, compass,
 } from './lib.js';
 
 // === External services ===
@@ -314,13 +314,26 @@ computed('astro', ['lp', 'focal', 'place', 'wx.data', 'dayIndex'], (s) => {
   const darkLine = win.astro
     ? `Dark sky ${win.from}–${win.to}`
     : `No full darkness — deepest ${win.deepest}° at ${win.deepestAt}`;
+  // Where (and whether) the Milky Way core rides tonight.
+  const core = coreWindow(off, Date.now(), day, p.lat, p.lon);
+  let coreLine;
+  let coreAz = null;
+  if (core.visible) {
+    coreLine = `Core up ${core.from}–${core.to} · peaks ${core.peakAlt}° ${compass(core.peakAz)} at ${core.peakAt}`;
+    coreAz = core.peakAz;
+  } else if (core.maxAlt > 0) {
+    coreLine = `Core stays low tonight (max ${core.maxAlt}°) — needs a flat south horizon, or head south`;
+  } else {
+    coreLine = 'Core below the horizon tonight';
+  }
   const notes = [];
   if (moon.illum >= 60) notes.push(`${moon.icon} Bright moon (${moon.illum}%) washes out faint stars.`);
+  else if (core.visible && moon.illum >= 40) notes.push(`${moon.icon} Moon at ${moon.illum}% — the core will lose contrast.`);
   if (clipped) notes.push('Needs more than ISO 12800 — use a star tracker or stack frames.');
   if (sqm < 19.3) notes.push('Bright skyglow here — for the Milky Way, head somewhere darker.');
   return {
     shutter: t >= 10 ? `${Math.round(t)}s` : `${t}s`,
-    N, iso, darkLine,
+    N, iso, darkLine, coreLine, coreAz,
     moonIcon: moon.icon,
     moonIllum: moon.illum,
     note: notes.join(' '),
@@ -839,6 +852,17 @@ const paintStreak = () => {
 };
 watch(['exposure'], paintStreak);
 
+// Compass arrow for the Milky Way core's peak azimuth (up = north).
+const paintCore = () => {
+  const el = spektrum.refs.coreArrow;
+  if (!el) return;
+  const az = appState.astro?.coreAz;
+  el.style.display = az == null ? 'none' : '';
+  // ➤ points east at rest; az is from north, so offset −90°.
+  if (az != null) el.style.transform = `rotate(${az - 90}deg)`;
+};
+watch(['astro'], paintCore);
+
 // Position the depth-of-field diagram markers along the log track.
 const paintDof = () => {
   const el = spektrum.refs.dofTrack;
@@ -879,6 +903,7 @@ paintIso();
 paintMeter();
 paintStreak();
 paintDof();
+paintCore();
 paintLevel();
 restoreScenePreview(restoredScene);
 refreshLp(); // restored place doesn't fire the place watch
