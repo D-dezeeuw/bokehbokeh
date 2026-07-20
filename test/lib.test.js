@@ -9,7 +9,7 @@ import {
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
-  meterAngle, trackEV, streakAmount, motionLabel,
+  meterAngle, trackEV, streakAmount, motionLabel, fmtSeconds,
 } from '../lib.js';
 
 /** Build a solid-color ImageData-shaped object. */
@@ -328,6 +328,20 @@ test('streakAmount: frozen at 1/1000, full streaks at 1/15, log-scaled between',
   assert.equal(motionLabel(1 / 40), 'visible motion blur');
   assert.equal(motionLabel(1 / 125), 'slight motion blur');
   assert.equal(motionLabel(1 / 2000), 'motion frozen');
+});
+
+test('ND stops subtract from scene EV in the shutter solve', () => {
+  // Deep focus at bright noon: EV 15, f/11, ISO 100 → 1/250-ish
+  const bare = shutterSeconds(15, 11, 100);
+  assert.ok(bare < 1 / 100, `bare ${bare}`);
+  // ND1000 (10 stops): same scene solves to ~4s of silky water
+  const nd10 = shutterSeconds(15 - 10, 11, 100);
+  assert.ok(Math.abs(nd10 - 121 / 32) < 1e-9);
+  assert.equal(snapShutter(nd10).label, '4s');
+  assert.equal(fmtSeconds(8), '8s');
+  assert.equal(fmtSeconds(61), '1:01');
+  assert.equal(fmtSeconds(125), '2:05');
+  assert.equal(fmtSeconds(-3), '0s');
 });
 
 test('meterAngle maps the EV range onto the dial and clamps the ends', () => {

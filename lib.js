@@ -515,6 +515,13 @@ export const utcMsAt = (offsetSec, baseUtcMs, dayOffset, minutes) => {
 export const fmtTime = (minutes) =>
   `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
+/** "8s" under a minute, "2:05" above — for the long-exposure countdown. */
+export const fmtSeconds = (s) => {
+  const v = Math.max(0, Math.round(s));
+  if (v < 60) return `${v}s`;
+  return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`;
+};
+
 /** "Amsterdam, NL" → {name, country}; bare "Amsterdam" → country ''. */
 export const parseQuery = (raw) => {
   const [name, country = ''] = raw.split(',').map((s) => s.trim());
