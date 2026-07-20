@@ -945,6 +945,13 @@ input[type="range"]::-moz-range-thumb {
   font-size: 0.85rem;
   color: #a99ae0;
 }
+.core-line { margin-top: 6px; }
+.core-arrow {
+  display: inline-block;
+  color: #d9ccff;
+  transform-origin: 50% 50%;
+  margin: 0 2px;
+}
 .astro-hint {
   margin: 0;
   font-size: 0.78rem;

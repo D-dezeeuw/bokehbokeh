@@ -40,7 +40,9 @@ sliders and one-tap presets for maximum or minimum bokeh.
    tiles (single-pixel canvas lookup, manual Bortle override available) and
    recommends star settings: trail-free shutter via the 500 rule for your
    focal length, ISO matched to the sky brightness, plus the night's
-   astronomical-darkness window and moon phase.
+   astronomical-darkness window, moon phase, and where the Milky Way
+   core rides — visibility window, peak altitude and compass direction
+   (or an honest "stays too low here" at high latitudes).
 
 A **Basic / Advanced / Expert** pill switcher keeps it approachable:
 Basic shows location, time, presets and the answer; Advanced adds weather
