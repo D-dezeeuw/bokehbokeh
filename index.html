@@ -232,6 +232,7 @@
         <span class="res-sep adv">·</span>
         <span class="adv">EV {{exposure.ev}}</span>
         <span class="res-metered" data-if="meteredEV !== null">📸 metered</span>
+        <span class="res-nd" data-if="exposure.nd > 0">🕶️ ND −{{exposure.nd}} EV</span>
       </div>
       <div class="res-main">
         <div class="res-item">
@@ -248,6 +249,8 @@
         </div>
       </div>
       <p class="res-note" data-if="exposure.warning">⚠️ {{exposure.warning}}</p>
+      <button type="button" class="timer-btn" data-if="exposure.t >= 1 && !timer"
+        data-action="click" data-fn="startTimer">⏱ Time this {{exposure.shutter}} exposure</button>
     </section>
 
     <!-- Presets -->
@@ -284,6 +287,15 @@
         <input id="iso" type="range" min="0" max="7" step="1"
           data-model="isoIdx.number" data-action="input" data-fn="unpreset">
         <div class="ctl-scale"><span>100 · clean</span><span>12800 · noisy</span></div>
+      </div>
+      <div class="nd-row">
+        <span class="nd-label">🕶️ ND filter</span>
+        <div class="chips" role="group" aria-label="Neutral density filter">
+          <button type="button" class="chip" :class="{active: ndStops === 0}" data-action="click" data-fn="setNd" data-value="0">None</button>
+          <button type="button" class="chip" :class="{active: ndStops === 3}" data-action="click" data-fn="setNd" data-value="3">ND8</button>
+          <button type="button" class="chip" :class="{active: ndStops === 6}" data-action="click" data-fn="setNd" data-value="6">ND64</button>
+          <button type="button" class="chip" :class="{active: ndStops === 10}" data-action="click" data-fn="setNd" data-value="10">ND1000</button>
+        </div>
       </div>
     </section>
 
@@ -358,7 +370,17 @@
       </div>
       <p class="astro-hint">Star settings: widest aperture (f/2.8 or faster), shutter under the trail limit for your lens, ISO matched to the sky. Wider lens? Drop ISO a stop.</p>
     </section>
+
   </main>
+
+  <!-- Long-exposure countdown: outside the card — its backdrop-filter
+       would otherwise become the containing block for position:fixed -->
+  <div class="timer-overlay" data-if="timer" role="timer" aria-live="polite">
+    <span class="timer-count">{{timerLabel}}</span>
+    <div class="timer-bar"><div class="timer-fill" data-ref="timerFill"></div></div>
+    <span class="timer-sub">exposure running — screen stays awake</span>
+    <button type="button" class="timer-cancel" data-action="click" data-fn="cancelTimer">✕ Cancel</button>
+  </div>
 
   <footer class="site-footer">
     <p class="footer-credits">

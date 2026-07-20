@@ -10,7 +10,7 @@ import {
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
-  meterAngle, trackEV, streakAmount, motionLabel,
+  meterAngle, trackEV, streakAmount, motionLabel, fmtSeconds,
 } from './lib.js';
 
 // === External services ===
@@ -164,6 +164,8 @@ setValue('scene', restoredScene); // photo light-check result survives refresh
 setValue('meteredEV', restoredScene?.ev ?? null);
 setValue('sceneError', '');
 setValue('live', null); // live viewfinder reading while the camera runs
+setValue('ndStops', 0); // 0 / 3 / 6 / 10 = none / ND8 / ND64 / ND1000
+setValue('timer', null); // running long-exposure countdown
 setValue('uiLevel', loadLevel()); // Basic / Advanced / Expert
 spektrum.tick();
 
@@ -203,12 +205,13 @@ computed('sun', ['place', 'wx.data', 'dayIndex', 'timeMinutes'], (s) => {
   return { elev: Math.round(elev * 10) / 10, ...sunPhase(elev) };
 });
 
-computed('exposure', ['sun', 'cond', 'apertureIdx', 'isoIdx', 'meteredEV'], (s) => {
+computed('exposure', ['sun', 'cond', 'apertureIdx', 'isoIdx', 'meteredEV', 'ndStops'], (s) => {
   if (!s.sun) return null;
   const N = F_STOPS[s.apertureIdx ?? 3] ?? 1.8;
   const iso = ISOS[s.isoIdx ?? 0] ?? 100;
   const ev = s.meteredEV ?? Math.round(sceneEV(s.sun.elev, s.cond?.penalty ?? 0) * 10) / 10;
-  const exact = shutterSeconds(ev, N, iso);
+  const nd = s.ndStops ?? 0;
+  const exact = shutterSeconds(ev - nd, N, iso);
   const snap = snapShutter(exact);
   const warnings = [];
   if (exact < 1 / 8000) warnings.push('Too bright for 1/8000 — stop down or add an ND filter.');
@@ -216,13 +219,16 @@ computed('exposure', ['sun', 'cond', 'apertureIdx', 'isoIdx', 'meteredEV'], (s) 
   else if (snap.t > 1 / 50) warnings.push('Slowish shutter — brace the camera or raise ISO.');
   if (iso >= 6400) warnings.push('High ISO — expect visible noise.');
   return {
-    N, iso, ev,
+    N, iso, ev, nd,
     shutter: snap.label,
     t: snap.t,
     motion: motionLabel(snap.t),
     warning: warnings.join(' '),
   };
 });
+
+computed('timerLabel', ['timer'], (s) =>
+  (s.timer ? fmtSeconds(Math.ceil(s.timer.left)) : ''));
 
 computed('bokeh', ['apertureIdx'], (s) => {
   const score = bokehScore(F_STOPS[s.apertureIdx ?? 3] ?? 1.8);
@@ -547,6 +553,63 @@ defineFn('clearScene', () => {
 
 defineFn('setLevel', (_el, _state, _delta, value) => setValue('uiLevel', value));
 
+defineFn('setNd', (_el, _state, _delta, value) => setValue('ndStops', value));
+
+// --- Long-exposure countdown timer ---
+
+let timerInterval = 0;
+let wakeLock = null;
+
+const releaseWakeLock = () => {
+  wakeLock?.release?.().catch(() => {});
+  wakeLock = null;
+};
+
+const acquireWakeLock = async () => {
+  try { wakeLock = await navigator.wakeLock?.request?.('screen'); } catch {}
+};
+
+const beep = () => {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.25, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.7);
+    osc.start();
+    osc.stop(ac.currentTime + 0.7);
+  } catch {}
+};
+
+const stopTimer = (finished) => {
+  clearInterval(timerInterval);
+  timerInterval = 0;
+  releaseWakeLock();
+  if (appState.timer) setValue('timer', null);
+  if (finished) beep();
+};
+
+defineFn('startTimer', () => {
+  const t = appState.exposure?.t;
+  if (!t || t < 1 || timerInterval) return;
+  const end = Date.now() + t * 1000;
+  setValue('timer', { total: t, left: t });
+  acquireWakeLock();
+  timerInterval = setInterval(() => {
+    const left = (end - Date.now()) / 1000;
+    if (left <= 0) {
+      stopTimer(true);
+      return;
+    }
+    setValue('timer', { total: t, left });
+  }, 100);
+});
+
+defineFn('cancelTimer', () => stopTimer(false));
+
 // --- Live viewfinder meter ---
 
 let liveStream = null;
@@ -642,9 +705,11 @@ defineFn('useLiveReading', () => {
   autoSolve();
 });
 
-// The camera has no business running while hidden.
+// The camera has no business running while hidden; the wake lock is
+// auto-released on hide, so re-acquire it if a countdown is still going.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopLive();
+  else if (timerInterval && !wakeLock) acquireWakeLock();
 });
 
 defineFn('retryWx', () => refetchWx?.());
@@ -746,6 +811,14 @@ const paintStreak = () => {
   el.style.setProperty('--mb', String(streakAmount(appState.exposure?.t ?? 1 / 250)));
 };
 watch(['exposure'], paintStreak);
+
+// Countdown progress bar drains with the running exposure.
+const paintTimer = () => {
+  const el = spektrum.refs.timerFill;
+  const t = appState.timer;
+  if (el && t?.total) el.style.width = `${Math.max(0, (t.left / t.total) * 100)}%`;
+};
+watch(['timer'], paintTimer);
 
 // Sunrise/sunset shift the day-gradient on the time slider track.
 const paintSunTrack = () => {
