@@ -9,7 +9,7 @@ import {
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
-  meterAngle, trackEV,
+  meterAngle, trackEV, streakAmount, motionLabel,
 } from '../lib.js';
 
 /** Build a solid-color ImageData-shaped object. */
@@ -316,6 +316,18 @@ test('trackEV converts camera track settings in either unit form', () => {
   assert.equal(trackEV({ exposureTime: 100 }), null);
   assert.equal(trackEV({ iso: 100 }), null);
   assert.equal(trackEV(), null);
+});
+
+test('streakAmount: frozen at 1/1000, full streaks at 1/15, log-scaled between', () => {
+  assert.equal(streakAmount(1 / 1000), 0);
+  assert.equal(streakAmount(1 / 15), 1);
+  assert.ok(Math.abs(streakAmount(1 / 125) - 0.5) < 0.05, `mid ${streakAmount(1 / 125)}`);
+  assert.equal(streakAmount(1 / 8000), 0);
+  assert.equal(streakAmount(2), 1);
+  assert.equal(motionLabel(1 / 8), 'motion streaks');
+  assert.equal(motionLabel(1 / 40), 'visible motion blur');
+  assert.equal(motionLabel(1 / 125), 'slight motion blur');
+  assert.equal(motionLabel(1 / 2000), 'motion frozen');
 });
 
 test('meterAngle maps the EV range onto the dial and clamps the ends', () => {

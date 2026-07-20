@@ -468,6 +468,23 @@ export const trackEV = ({ exposureTime, iso } = {}, N = 1.8) => {
 };
 
 /**
+ * How pronounced moving lights streak at a given shutter time, 0–1:
+ * frozen at 1/1000 and faster, fully drawn-out streaks at 1/15 and
+ * slower. Log-scaled like everything exposure.
+ */
+export const streakAmount = (t) => {
+  const f = (Math.log2(t) - Math.log2(1 / 1000)) / (Math.log2(1 / 15) - Math.log2(1 / 1000));
+  return Math.max(0, Math.min(1, Math.round(f * 100) / 100));
+};
+
+export const motionLabel = (t) => {
+  if (t >= 1 / 15) return 'motion streaks';
+  if (t >= 1 / 60) return 'visible motion blur';
+  if (t >= 1 / 250) return 'slight motion blur';
+  return 'motion frozen';
+};
+
+/**
  * Needle angle (degrees, 0 = straight up) for the analog light meter:
  * EV −2 (candle) at −80° through EV 18 (blazing sun) at +80°.
  */

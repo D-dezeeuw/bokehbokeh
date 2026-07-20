@@ -10,7 +10,7 @@ import {
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
-  meterAngle, trackEV,
+  meterAngle, trackEV, streakAmount, motionLabel,
 } from './lib.js';
 
 // === External services ===
@@ -215,7 +215,13 @@ computed('exposure', ['sun', 'cond', 'apertureIdx', 'isoIdx', 'meteredEV'], (s) 
   if (snap.t >= 1) warnings.push('Tripod territory — handheld shots will blur.');
   else if (snap.t > 1 / 50) warnings.push('Slowish shutter — brace the camera or raise ISO.');
   if (iso >= 6400) warnings.push('High ISO — expect visible noise.');
-  return { N, iso, ev, shutter: snap.label, warning: warnings.join(' ') };
+  return {
+    N, iso, ev,
+    shutter: snap.label,
+    t: snap.t,
+    motion: motionLabel(snap.t),
+    warning: warnings.join(' '),
+  };
 });
 
 computed('bokeh', ['apertureIdx'], (s) => {
@@ -732,6 +738,15 @@ const paintMeter = () => {
 };
 watch(['exposure', 'live'], paintMeter);
 
+// Shutter speed draws the preview's moving lights out into streaks —
+// the third leg of the exposure triangle next to blur (--bk) and grain.
+const paintStreak = () => {
+  const el = spektrum.refs.stage;
+  if (!el) return;
+  el.style.setProperty('--mb', String(streakAmount(appState.exposure?.t ?? 1 / 250)));
+};
+watch(['exposure'], paintStreak);
+
 // Sunrise/sunset shift the day-gradient on the time slider track.
 const paintSunTrack = () => {
   const el = spektrum.refs.timeCtl;
@@ -750,6 +765,7 @@ paintBokeh();
 paintSunTrack();
 paintIso();
 paintMeter();
+paintStreak();
 paintLevel();
 restoreScenePreview(restoredScene);
 refreshLp(); // restored place doesn't fire the place watch

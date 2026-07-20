@@ -293,9 +293,13 @@
         <div class="lights">
           <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
         </div>
+        <div class="streaks">
+          <i></i><i></i><i></i>
+        </div>
         <span class="subject">📷</span>
       </div>
       <div class="noise" aria-hidden="true"></div>
+      <span class="preview-tag preview-tag-tl" data-if="exposure">{{exposure.shutter}} · {{exposure.motion}}</span>
       <span class="preview-tag">{{bokeh.label}} · {{bokeh.score}}% blur</span>
     </section>
 
