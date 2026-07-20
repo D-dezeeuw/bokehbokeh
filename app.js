@@ -117,11 +117,31 @@ const savePlace = (p) => {
 const UI_KEY = 'bokehbokeh:ui';
 const SCENE_KEY = 'bokehbokeh:scene';
 
-const loadLevel = () => {
+/** UI shape: {mode, lightTab, manualEV, manualCls}. Tolerates the old
+ *  tier integer this key used to hold — anything unreadable → defaults. */
+const loadUi = () => {
+  const def = { mode: 'day', lightTab: 'auto', manualEV: 12, manualCls: null };
   try {
-    const v = parseInt(localStorage.getItem(UI_KEY), 10);
-    return v >= 0 && v <= 2 ? v : 0;
-  } catch { return 0; }
+    const v = JSON.parse(localStorage.getItem(UI_KEY));
+    if (!v || typeof v !== 'object') return def;
+    return {
+      mode: v.mode === 'night' ? 'night' : 'day',
+      lightTab: ['auto', 'photo', 'live', 'manual'].includes(v.lightTab) ? v.lightTab : 'auto',
+      manualEV: typeof v.manualEV === 'number' ? v.manualEV : 12,
+      manualCls: typeof v.manualCls === 'number' ? v.manualCls : null,
+    };
+  } catch { return def; }
+};
+
+const saveUi = () => {
+  try {
+    localStorage.setItem(UI_KEY, JSON.stringify({
+      mode: appState.mode,
+      lightTab: appState.lightTab,
+      manualEV: appState.manualEV,
+      manualCls: appState.manualCls,
+    }));
+  } catch {}
 };
 
 const loadScene = () => {
@@ -161,15 +181,30 @@ setValue('lpZone', null); // atlas zone index once fetched
 setValue('lpOverride', -1); // -1 = auto (from atlas)
 setValue('focal', 20);
 const restoredScene = loadScene();
+const restoredUi = loadUi();
 setValue('scene', restoredScene); // photo light-check result survives refresh
-setValue('meteredEV', restoredScene?.ev ?? null);
 setValue('sceneError', '');
 setValue('live', null); // live viewfinder reading while the camera runs
 setValue('ndStops', 0); // 0 / 3 / 6 / 10 = none / ND8 / ND64 / ND1000
 setValue('timer', null); // running long-exposure countdown
 setValue('sheetOpen', false); // answer-bar detail sheet
 setValue('distV', 55); // subject-distance slider 0–100 (log 0.3–20 m) ≈ 3 m
-setValue('uiLevel', loadLevel()); // Basic / Advanced / Expert
+setValue('mode', restoredUi.mode); // day | night (astro)
+setValue('lightTab', restoredUi.lightTab); // auto | photo | live | manual
+setValue('manualEV', restoredUi.manualEV);
+setValue('manualCls', restoredUi.manualCls);
+setValue('moreOpen', false); // ND + depth-of-field expander
+setValue('locEdit', false); // location pill expanded into the search row
+// The metered override follows the restored light source: a photo's
+// stored EV on the photo tab, the manual dial on manual, else the model.
+setValue(
+  'meteredEV',
+  restoredUi.lightTab === 'photo' && restoredScene
+    ? restoredScene.ev
+    : restoredUi.lightTab === 'manual'
+      ? restoredUi.manualEV
+      : null,
+);
 spektrum.tick();
 
 // addAsync owns `wx.{loading,data,error}` and auto-runs once on registration.
@@ -411,6 +446,7 @@ const tryGeolocate = () => {
       const label = `${Math.abs(lat)}°${lat >= 0 ? 'N' : 'S'} ${Math.abs(lon)}°${lon >= 0 ? 'E' : 'W'}`;
       setValue('place', { name: label, country: '', lat, lon });
       setValue('geoStatus', 'ok');
+      setValue('locEdit', false);
       // Best-effort reverse geocode for a friendly name; lat/lon are
       // unchanged so this never triggers a second weather fetch.
       try {
@@ -450,6 +486,7 @@ defineFn('searchCity', async () => {
       lon: hit.longitude,
     });
     setValue('geoStatus', 'ok');
+    setValue('locEdit', false);
   } catch (err) {
     setValue('searchError', err.message || 'Search failed');
   }
@@ -592,7 +629,58 @@ defineFn('clearScene', () => {
   autoSolve();
 });
 
-defineFn('setLevel', (_el, _state, _delta, value) => setValue('uiLevel', value));
+// --- Light source tabs / mode / layout ---
+
+defineFn('setTab', (_el, _state, _delta, value) => {
+  const prev = appState.lightTab;
+  if (prev === value) return;
+  if (prev === 'live') stopLive();
+  setValue('lightTab', value);
+  if (value === 'auto') setValue('meteredEV', null);
+  else if (value === 'photo') setValue('meteredEV', appState.scene?.ev ?? null);
+  else if (value === 'manual') {
+    // Seed the dial from whatever EV is currently active.
+    if (appState.manualEV == null) setValue('manualEV', appState.exposure?.ev ?? 12);
+    setValue('meteredEV', appState.manualEV ?? appState.exposure?.ev ?? 12);
+  }
+  spektrum.tick();
+  autoSolve();
+  saveUi();
+});
+
+defineFn('toggleMode', () => {
+  const night = appState.mode !== 'night';
+  if (night) stopLive();
+  setValue('mode', night ? 'night' : 'day');
+  setValue('sheetOpen', false);
+  spektrum.tick();
+  saveUi();
+});
+
+defineFn('setManualScene', (_el, _state, _delta, value) => {
+  setValue('manualCls', value);
+  setValue('manualEV', SCENES[value].ev);
+  setValue('meteredEV', SCENES[value].ev);
+  spektrum.tick();
+  autoSolve();
+  saveUi();
+});
+
+/** Read the slider element directly: action listeners fire before the
+ *  data-model listener commits, so appState.manualEV is one step stale. */
+defineFn('applyManualEV', (el) => {
+  const v = parseFloat(el?.value);
+  if (!Number.isFinite(v)) return;
+  setValue('manualCls', null);
+  setValue('manualEV', v);
+  setValue('meteredEV', v);
+  spektrum.tick();
+  autoSolve();
+  saveUi();
+});
+
+defineFn('toggleLocEdit', () => setValue('locEdit', !appState.locEdit));
+defineFn('toggleMore', () => setValue('moreOpen', !appState.moreOpen));
 
 defineFn('setNd', (_el, _state, _delta, value) => setValue('ndStops', value));
 
@@ -743,6 +831,7 @@ defineFn('useLiveReading', () => {
   stopLive();
   setValue('scene', scene);
   setValue('meteredEV', scene.ev);
+  setValue('lightTab', 'photo'); // the frozen reading lives on the Photo tab
   saveScene(scene);
   spektrum.tick();
   autoSolve();
@@ -822,19 +911,10 @@ const paintIso = () => {
 };
 watch(['isoIdx'], paintIso);
 
-// Interface level: a class on the card root drives which sections CSS
-// shows (`.adv` at Advanced+, `.exp` at Expert). Persisted per device.
-const paintLevel = () => {
-  const card = spektrum.refs.card;
-  const lvl = appState.uiLevel ?? 0;
-  if (card) {
-    card.classList.remove('level-0', 'level-1', 'level-2');
-    card.classList.add(`level-${lvl}`);
-  }
-  if (lvl === 0) stopLive(); // Basic hides the viewfinder — release the camera
-  try { localStorage.setItem(UI_KEY, String(lvl)); } catch {}
-};
-watch(['uiLevel'], paintLevel);
+// The camera only runs while its tab is on screen in day mode.
+watch(['lightTab', 'mode'], () => {
+  if (appState.mode !== 'day' || appState.lightTab !== 'live') stopLive();
+});
 
 // The analog meter needle follows the active scene EV — the sun/weather
 // model normally, the photo measurement while one is loaded.
@@ -907,7 +987,8 @@ paintMeter();
 paintStreak();
 paintDof();
 paintCore();
-paintLevel();
+// Persist layout choices whenever they change (also covers boot defaults).
+watch(['mode', 'lightTab', 'manualEV', 'manualCls'], saveUi);
 restoreScenePreview(restoredScene);
 refreshLp(); // restored place doesn't fire the place watch
 
