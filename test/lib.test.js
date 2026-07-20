@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   F_STOPS, ISOS, SHUTTERS,
   sunElevation, clearSkyEV, sceneEV, daylightFactor,
-  conditionFromWeather, shutterSeconds, snapShutter, pickIso,
+  conditionFromWeather, shutterSeconds, snapShutter, pickIso, isoForShutter,
   bokehScore, bokehLabel, sunPhase,
   localParts, utcMsAt, fmtTime, parseQuery,
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
@@ -119,6 +119,16 @@ test('pickIso keeps shutter handheld-fast, falls back to max ISO', () => {
   assert.equal(pickIso(9, 1.8), 100); // sunset, wide open: base ISO fine
   assert.equal(pickIso(9, 11), 1600); // sunset, stopped down: needs ISO 1600
   assert.equal(pickIso(-5, 2.8), ISOS.at(-1)); // night: even max ISO too slow
+});
+
+test('isoForShutter is the inverse of shutterSeconds', () => {
+  assert.equal(isoForShutter(15, 16, shutterSeconds(15, 16, 400)), 400);
+  assert.equal(isoForShutter(9, 2.8, shutterSeconds(9, 2.8, 1600)), 1600);
+});
+
+test('isoForShutter clamps to the ISO range ends', () => {
+  assert.equal(isoForShutter(15, 1.8, 1 / 8000), ISOS[0]); // plenty of light: base ISO
+  assert.equal(isoForShutter(-5, 2.8, 1 / 60), ISOS.at(-1)); // night, fast shutter: maxes out
 });
 
 test('bokehScore spans 100 → 0 across the aperture range', () => {
