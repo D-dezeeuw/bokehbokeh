@@ -10,6 +10,7 @@ import {
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
   meterAngle, trackEV, streakAmount, motionLabel, fmtSeconds,
+  dofCalc, fmtDist,
 } from '../lib.js';
 
 /** Build a solid-color ImageData-shaped object. */
@@ -342,6 +343,32 @@ test('ND stops subtract from scene EV in the shutter solve', () => {
   assert.equal(fmtSeconds(61), '1:01');
   assert.equal(fmtSeconds(125), '2:05');
   assert.equal(fmtSeconds(-3), '0s');
+});
+
+test('dofCalc matches the textbook 50mm f/1.8 portrait numbers', () => {
+  const d = dofCalc(50, 1.8, 3);
+  assert.ok(Math.abs(d.near - 2.82) < 0.02, `near ${d.near}`);
+  assert.ok(Math.abs(d.far - 3.2) < 0.02, `far ${d.far}`);
+  assert.ok(Math.abs(d.hyperfocal - 46.3) < 0.3, `hyperfocal ${d.hyperfocal}`);
+  assert.ok(d.blurPct > 1.5 && d.blurPct < 2.5, `blur ${d.blurPct}`);
+});
+
+test('dofCalc: beyond hyperfocal everything to infinity is sharp', () => {
+  const d = dofCalc(20, 11, 20); // wide + stopped down, subject at 20m
+  assert.ok(d.hyperfocal < 2, `hyperfocal ${d.hyperfocal}`);
+  assert.equal(d.far, Infinity);
+  assert.ok(d.near < 1.5, `near ${d.near}`);
+  // stopping down widens the sharp zone
+  const wide = dofCalc(50, 1.8, 3);
+  const stopped = dofCalc(50, 11, 3);
+  assert.ok(stopped.far - stopped.near > (wide.far - wide.near) * 4);
+});
+
+test('fmtDist picks sensible units', () => {
+  assert.equal(fmtDist(0.82), '82cm');
+  assert.equal(fmtDist(3.24), '3.2m');
+  assert.equal(fmtDist(46.3), '46m');
+  assert.equal(fmtDist(Infinity), '∞');
 });
 
 test('meterAngle maps the EV range onto the dial and clamps the ends', () => {
