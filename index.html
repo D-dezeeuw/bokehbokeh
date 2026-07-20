@@ -299,6 +299,40 @@
       </div>
     </section>
 
+    <!-- Depth of field -->
+    <section class="dof-sec adv">
+      <header class="sec-head">
+        <h2>Focus &amp; depth</h2>
+        <span class="sec-sub">full-frame · CoC 0.03mm</span>
+      </header>
+      <div class="ctl">
+        <div class="ctl-head">
+          <label for="dofFocal">Lens focal length</label>
+          <span class="ctl-val">{{focal}}mm</span>
+        </div>
+        <input id="dofFocal" type="range" min="14" max="85" step="1" data-model="focal.number">
+        <div class="ctl-scale"><span>14mm · wide</span><span>85mm · portrait</span></div>
+      </div>
+      <div class="ctl">
+        <div class="ctl-head">
+          <label for="dofDist">Subject distance</label>
+          <span class="ctl-val">{{dof.distLabel}}</span>
+        </div>
+        <input id="dofDist" type="range" min="0" max="100" step="1" data-model="distV.number">
+        <div class="ctl-scale"><span>0.3m · close</span><span>20m · far</span></div>
+      </div>
+      <div class="dof-track" data-ref="dofTrack" aria-hidden="true">
+        <span class="dof-cam">📷</span>
+        <div class="dof-zone"></div>
+        <span class="dof-subj">🧍</span>
+        <span class="dof-hyper">H</span>
+      </div>
+      <p class="dof-read">
+        Sharp <b>{{dof.near}} – {{dof.far}}</b> ({{dof.depth}} deep) · hyperfocal <b>{{dof.hyper}}</b>
+        <span data-if="dof.infinite"> — focus here and everything to ∞ is sharp</span>
+      </p>
+    </section>
+
     <!-- Bokeh preview -->
     <section class="preview" data-ref="stage" aria-label="Bokeh preview">
       <div class="scene" aria-hidden="true">

@@ -464,6 +464,59 @@ input[type="range"]::-moz-range-thumb {
 }
 .nd-label { font-size: 0.9rem; color: var(--text-dim); }
 
+/* === depth of field === */
+.dof-sec { display: flex; flex-direction: column; gap: 14px; }
+.dof-sec .sec-head { margin-bottom: 0; }
+
+.dof-track {
+  position: relative;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.12));
+  overflow: hidden;
+  /* --near/--far/--subj/--hyper set from the dof computed (log-scale %) */
+}
+.dof-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--near, 40%);
+  width: calc(var(--far, 60%) - var(--near, 40%));
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.35), rgba(245, 158, 11, 0.18));
+  border-left: 1px solid var(--gold);
+  border-right: 1px solid var(--gold);
+  transition: left 0.15s ease, width 0.15s ease;
+}
+.dof-cam {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.1rem;
+}
+.dof-subj {
+  position: absolute;
+  left: var(--subj, 50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.2rem;
+  transition: left 0.15s ease;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
+}
+.dof-hyper {
+  position: absolute;
+  left: var(--hyper, 90%);
+  bottom: 2px;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--cyan);
+  transition: left 0.15s ease;
+}
+.dof-read { margin: 0; font-size: 0.85rem; color: var(--text-dim); }
+.dof-read b { color: var(--gold); font-variant-numeric: tabular-nums; }
+
 .timer-btn {
   margin-top: 14px;
   padding: 11px 18px;

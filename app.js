@@ -11,6 +11,7 @@ import {
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
   meterAngle, trackEV, streakAmount, motionLabel, fmtSeconds,
+  dofCalc, fmtDist,
 } from './lib.js';
 
 // === External services ===
@@ -166,6 +167,7 @@ setValue('sceneError', '');
 setValue('live', null); // live viewfinder reading while the camera runs
 setValue('ndStops', 0); // 0 / 3 / 6 / 10 = none / ND8 / ND64 / ND1000
 setValue('timer', null); // running long-exposure countdown
+setValue('distV', 55); // subject-distance slider 0–100 (log 0.3–20 m) ≈ 3 m
 setValue('uiLevel', loadLevel()); // Basic / Advanced / Expert
 spektrum.tick();
 
@@ -229,6 +231,31 @@ computed('exposure', ['sun', 'cond', 'apertureIdx', 'isoIdx', 'meteredEV', 'ndSt
 
 computed('timerLabel', ['timer'], (s) =>
   (s.timer ? fmtSeconds(Math.ceil(s.timer.left)) : ''));
+
+// Depth of field for the shared focal length + main aperture; the
+// subject-distance slider is log-scaled 0.3–20 m.
+const DIST_MIN = 0.3;
+const DIST_RANGE = 20 / 0.3;
+computed('dof', ['focal', 'apertureIdx', 'distV'], (s) => {
+  const focal = s.focal ?? 20;
+  const N = F_STOPS[s.apertureIdx ?? 3] ?? 1.8;
+  const dist = DIST_MIN * Math.pow(DIST_RANGE, (s.distV ?? 55) / 100);
+  const d = dofCalc(focal, N, dist);
+  const pct = (m) =>
+    Math.max(0, Math.min(100, (Math.log(m / DIST_MIN) / Math.log(DIST_RANGE)) * 100));
+  return {
+    distLabel: fmtDist(dist),
+    near: fmtDist(d.near),
+    far: fmtDist(d.far),
+    depth: d.far === Infinity ? '∞' : fmtDist(Math.max(0, d.far - d.near)),
+    hyper: fmtDist(d.hyperfocal),
+    nearPct: pct(d.near),
+    farPct: d.far === Infinity ? 100 : pct(d.far),
+    subjPct: pct(dist),
+    hyperPct: pct(d.hyperfocal),
+    infinite: d.far === Infinity,
+  };
+});
 
 computed('bokeh', ['apertureIdx'], (s) => {
   const score = bokehScore(F_STOPS[s.apertureIdx ?? 3] ?? 1.8);
@@ -812,6 +839,18 @@ const paintStreak = () => {
 };
 watch(['exposure'], paintStreak);
 
+// Position the depth-of-field diagram markers along the log track.
+const paintDof = () => {
+  const el = spektrum.refs.dofTrack;
+  const d = appState.dof;
+  if (!el || !d) return;
+  el.style.setProperty('--near', `${d.nearPct}%`);
+  el.style.setProperty('--far', `${d.farPct}%`);
+  el.style.setProperty('--subj', `${d.subjPct}%`);
+  el.style.setProperty('--hyper', `${d.hyperPct}%`);
+};
+watch(['dof'], paintDof);
+
 // Countdown progress bar drains with the running exposure.
 const paintTimer = () => {
   const el = spektrum.refs.timerFill;
@@ -839,6 +878,7 @@ paintSunTrack();
 paintIso();
 paintMeter();
 paintStreak();
+paintDof();
 paintLevel();
 restoreScenePreview(restoredScene);
 refreshLp(); // restored place doesn't fire the place watch

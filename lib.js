@@ -467,6 +467,37 @@ export const trackEV = ({ exposureTime, iso } = {}, N = 1.8) => {
   return Math.round(Math.log2((N * N) / (t * (iso / 100))) * 10) / 10;
 };
 
+// === Depth of field ===
+
+/**
+ * Full-frame depth of field (circle of confusion 0.03 mm by default).
+ * focal in mm, N aperture, subject distance in meters. Returns meters:
+ * near/far sharp limits (far may be Infinity beyond the hyperfocal
+ * point), the hyperfocal distance, and how large a point light at
+ * infinity blurs on the sensor, as % of frame height (24 mm).
+ */
+export const dofCalc = (focal, N, subjectM, coc = 0.03) => {
+  const f = focal;
+  const s = subjectM * 1000;
+  const H = (f * f) / (N * coc) + f;
+  const near = (s * (H - f)) / (H + s - 2 * f);
+  const far = s >= H ? Infinity : (s * (H - f)) / (H - s);
+  const disc = (f * f) / (N * (s - f));
+  return {
+    near: near / 1000,
+    far: far === Infinity ? Infinity : far / 1000,
+    hyperfocal: H / 1000,
+    blurPct: Math.round((disc / 24) * 1000) / 10,
+  };
+};
+
+export const fmtDist = (m) => {
+  if (m === Infinity) return '∞';
+  if (m < 1) return `${Math.round(m * 100)}cm`;
+  if (m < 10) return `${Math.round(m * 10) / 10}m`;
+  return `${Math.round(m)}m`;
+};
+
 /**
  * How pronounced moving lights streak at a given shutter time, 0–1:
  * frozen at 1/1000 and faster, fully drawn-out streaks at 1/15 and
