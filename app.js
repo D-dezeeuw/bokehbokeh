@@ -300,6 +300,11 @@ computed('bokeh', ['apertureIdx'], (s) => {
   return { score, label: bokehLabel(score) };
 });
 
+/** The slider's own reading — a direct index lookup, same as aperture
+ *  (f/{{exposure.N}}) and ISO ({{exposure.iso}}) — so it updates every
+ *  frame of the drag instead of lagging behind the solved ISO. */
+computed('shutterLabel', ['shutterIdx'], (s) => SHUTTERS[s.shutterIdx ?? 0]?.label ?? '');
+
 computed('timeLabel', ['timeMinutes'], (s) => fmtTime(s.timeMinutes ?? 720));
 
 computed('dateLabel', ['wx.data', 'dayIndex'], (s) => {
@@ -515,6 +520,12 @@ defineFn('unpreset', () => {
   if (appState.preset !== 'custom') setValue('preset', 'custom');
 });
 
+/** Set once per shutter drag so syncShutterIdx (below) knows the
+ *  resulting exposure change came from the shutter slider itself and
+ *  skips writing its "achieved" index back — otherwise ISO's coarse
+ *  full-stop steps make the slider snap back mid-drag and feel stuck. */
+let shutterDrag = false;
+
 /**
  * Shutter is the third leg of the triangle: dragging it holds aperture
  * (the "look") fixed and solves ISO to hit the target time, mirroring
@@ -528,6 +539,7 @@ defineFn('applyShutter', (el) => {
   if (appState.preset !== 'custom') setValue('preset', 'custom');
   const N = F_STOPS[appState.apertureIdx ?? 3] ?? 1.8;
   const nd = appState.ndStops ?? 0;
+  shutterDrag = true;
   setValue('isoIdx', ISOS.indexOf(isoForShutter(currentEV() - nd, N, SHUTTERS[idx].t)));
 });
 
@@ -953,11 +965,14 @@ const paintStreak = () => {
 };
 watch(['exposure'], paintStreak);
 
-// The shutter slider's own position is a mirror, not a source of truth —
-// aperture × ISO × light always determine the real exposure.t. Keep it
-// snapped to whatever that settles on, including right after a direct
-// shutter drag once the solved ISO lands on its nearest full stop.
+// The shutter slider's own position is a mirror, not a source of truth,
+// for any OTHER change (aperture/ISO drag, light source, ND) — aperture
+// × ISO × light determine the real exposure.t, and the slider should
+// snap to reflect it. A change the shutter drag itself caused is the
+// one exception: shutterDrag skips the write-back so the slider follows
+// the user's own gesture instead of fighting it (see applyShutter).
 const syncShutterIdx = () => {
+  if (shutterDrag) { shutterDrag = false; return; }
   const t = appState.exposure?.t;
   if (t == null) return;
   let best = 0;
