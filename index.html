@@ -225,36 +225,6 @@
       </div>
     </section>
 
-    <!-- Result -->
-    <section class="result" data-if="exposure">
-      <div class="res-light">
-        <span>{{sun.phaseIcon}} {{sun.phase}}</span>
-        <span class="res-sep adv">·</span>
-        <span class="adv">sun {{sun.elev}}°</span>
-        <span class="res-sep adv">·</span>
-        <span class="adv">EV {{exposure.ev}}</span>
-        <span class="res-metered" data-if="meteredEV !== null">📸 metered</span>
-        <span class="res-nd" data-if="exposure.nd > 0">🕶️ ND −{{exposure.nd}} EV</span>
-      </div>
-      <div class="res-main">
-        <div class="res-item">
-          <span class="res-label">Shutter</span>
-          <span class="res-value">{{exposure.shutter}}</span>
-        </div>
-        <div class="res-item">
-          <span class="res-label">Aperture</span>
-          <span class="res-value">f/{{exposure.N}}</span>
-        </div>
-        <div class="res-item">
-          <span class="res-label">ISO</span>
-          <span class="res-value">{{exposure.iso}}</span>
-        </div>
-      </div>
-      <p class="res-note" data-if="exposure.warning">⚠️ {{exposure.warning}}</p>
-      <button type="button" class="timer-btn" data-if="exposure.t >= 1 && !timer"
-        data-action="click" data-fn="startTimer">⏱ Time this {{exposure.shutter}} exposure</button>
-    </section>
-
     <!-- Presets -->
     <section class="presets-sec">
       <header class="sec-head"><h2>Look</h2></header>
@@ -409,6 +379,38 @@
     </section>
 
   </main>
+
+  <!-- Fixed answer bar: the app's output, always in reach. Outside the
+       card — its backdrop-filter would trap position:fixed descendants. -->
+  <div class="answer-wrap" data-if="exposure">
+    <div class="answer-sheet" data-if="sheetOpen">
+      <p class="sheet-light">
+        <span>{{sun.phaseIcon}} {{sun.phase}}</span>
+        <span class="res-sep">·</span>
+        <span>sun {{sun.elev}}°</span>
+        <span class="res-sep">·</span>
+        <span>EV {{exposure.ev}}</span>
+        <span class="res-metered" data-if="meteredEV !== null">📸 metered</span>
+        <span class="res-nd" data-if="exposure.nd > 0">🕶️ ND −{{exposure.nd}} EV</span>
+      </p>
+      <p class="sheet-note" data-if="exposure.warning">⚠️ {{exposure.warning}}</p>
+      <p class="sheet-note sheet-ok" data-if="!exposure.warning">Settings look good — go shoot.</p>
+      <button type="button" class="timer-btn" data-if="exposure.t >= 1 && !timer"
+        data-action="click" data-fn="startTimer">⏱ Time this {{exposure.shutter}} exposure</button>
+    </div>
+    <button type="button" class="answer-bar" data-action="click" data-fn="toggleSheet"
+      :aria-expanded="sheetOpen" aria-label="Exposure settings — tap for details">
+      <span class="ab-badge" data-if="live">🎥</span>
+      <span class="ab-badge" data-if="!live && meteredEV !== null">📸</span>
+      <span class="ab-badge" data-if="!live && meteredEV === null">🌞</span>
+      <span class="ab-set">
+        <b>{{exposure.shutter}}</b><i>·</i><b>f/{{exposure.N}}</b><i>·</i><b>ISO {{exposure.iso}}</b>
+      </span>
+      <span class="ab-warn" data-if="exposure.warning">⚠️</span>
+      <span class="ab-chevron" data-if="!sheetOpen">▴</span>
+      <span class="ab-chevron" data-if="sheetOpen">▾</span>
+    </button>
+  </div>
 
   <!-- Long-exposure countdown: outside the card — its backdrop-filter
        would otherwise become the containing block for position:fixed -->
