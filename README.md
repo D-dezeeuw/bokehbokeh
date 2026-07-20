@@ -51,6 +51,11 @@ Expert adds the measurement internals (histogram, marker chips) and the
 Night sky section. The chosen level — and the last photo analysis — are
 remembered across visits.
 
+BokehBokeh is an **installable PWA**: add it to your home screen and it
+keeps working offline in the field — cached app shell, your last
+forecast, manual conditions, photo metering and all pure-math tools
+(DoF, ND, astro) with zero signal.
+
 Everything runs in the browser — no build step, no backend, no keys.
 Templating/reactivity by [Spektrum](https://www.npmjs.com/package/spektrum)
 straight from the CDN.
