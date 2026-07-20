@@ -167,6 +167,7 @@ setValue('sceneError', '');
 setValue('live', null); // live viewfinder reading while the camera runs
 setValue('ndStops', 0); // 0 / 3 / 6 / 10 = none / ND8 / ND64 / ND1000
 setValue('timer', null); // running long-exposure countdown
+setValue('sheetOpen', false); // answer-bar detail sheet
 setValue('distV', 55); // subject-distance slider 0–100 (log 0.3–20 m) ≈ 3 m
 setValue('uiLevel', loadLevel()); // Basic / Advanced / Expert
 spektrum.tick();
@@ -594,6 +595,8 @@ defineFn('clearScene', () => {
 defineFn('setLevel', (_el, _state, _delta, value) => setValue('uiLevel', value));
 
 defineFn('setNd', (_el, _state, _delta, value) => setValue('ndStops', value));
+
+defineFn('toggleSheet', () => setValue('sheetOpen', !appState.sheetOpen));
 
 // --- Long-exposure countdown timer ---
 
