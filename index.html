@@ -158,19 +158,39 @@
           </g>
         </svg>
         <div class="meter-read" data-if="exposure">
-          <span class="meter-ev">EV {{exposure.ev}}</span>
-          <span class="meter-src" data-if="meteredEV !== null">📸 from your photo</span>
-          <span class="meter-src" data-if="meteredEV === null">from sun &amp; weather</span>
+          <span class="meter-ev" data-if="!live">EV {{exposure.ev}}</span>
+          <span class="meter-ev" data-if="live">EV {{live.ev}}</span>
+          <span class="meter-src" data-if="live">🎥 live camera</span>
+          <span class="meter-src" data-if="!live && meteredEV !== null">📸 from your photo</span>
+          <span class="meter-src" data-if="!live && meteredEV === null">from sun &amp; weather</span>
         </div>
       </div>
 
       <input id="photoInput" class="file-input" type="file" accept="image/*"
         data-action="change" data-fn="analyzePhoto" aria-label="Analyze a photo">
-      <label class="upload-btn" for="photoInput" data-if="!sceneView">
-        <span class="upload-main">📸 Check the light from a photo</span>
-        <span class="upload-sub">snap or pick one — analyzed on your device, never uploaded</span>
-      </label>
+      <div class="capture-row" data-if="!sceneView && !live">
+        <label class="upload-btn" for="photoInput">
+          <span class="upload-main">📸 From a photo</span>
+          <span class="upload-sub">snap or pick one — analyzed on your device, never uploaded</span>
+        </label>
+        <button type="button" class="upload-btn" data-action="click" data-fn="startLive">
+          <span class="upload-main">🎥 Live meter</span>
+          <span class="upload-sub">point the camera — metered in real time, nothing recorded</span>
+        </button>
+      </div>
       <p class="geo-note" data-if="sceneError">{{sceneError}}</p>
+
+      <div class="live-card" data-if="live">
+        <video class="live-video" data-ref="liveVideo" playsinline muted autoplay></video>
+        <div class="scene-info">
+          <span class="scene-label">{{liveView.icon}} {{liveView.label}}</span>
+          <span class="scene-ev">EV {{liveView.ev}}<span data-if="!liveView.measured"> (approx.)</span></span>
+          <div class="live-actions">
+            <button type="button" class="live-use" data-action="click" data-fn="useLiveReading">◉ Use this reading</button>
+            <button type="button" class="live-stop" data-action="click" data-fn="stopLive">✕ Stop</button>
+          </div>
+        </div>
+      </div>
 
       <div class="scene-card" data-if="sceneView">
         <canvas class="scene-thumb" data-ref="sceneThumb" width="96" height="96"></canvas>
@@ -197,7 +217,10 @@
         <button type="button" class="chip" :class="{active: scene.cls === 4}" data-action="click" data-fn="setScene" data-value="4">🕯️ Dim</button>
       </div>
       <p class="scene-tip" data-if="sceneView">💡 {{sceneView.tip}}</p>
-      <label class="upload-again" for="photoInput" data-if="sceneView">📸 check another photo</label>
+      <div class="again-row" data-if="sceneView && !live">
+        <label class="upload-again" for="photoInput">📸 check another photo</label>
+        <button type="button" class="upload-again" data-action="click" data-fn="startLive">🎥 go live</button>
+      </div>
     </section>
 
     <!-- Result -->
