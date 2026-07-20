@@ -132,12 +132,6 @@
     <!-- Time -->
     <section class="when" data-if="mode === 'day' && lightTab === 'auto'">
       <div class="when-head">
-        <nav class="day-tabs" aria-label="Day selector">
-          <button type="button" class="day-tab" :class="{active: dayIndex === 0}"
-            :aria-pressed="dayIndex === 0" data-action="click" data-fn="selectDay" data-value="0">Today</button>
-          <button type="button" class="day-tab" :class="{active: dayIndex === 1}"
-            :aria-pressed="dayIndex === 1" data-action="click" data-fn="selectDay" data-value="1">Tomorrow</button>
-        </nav>
         <button type="button" class="now-btn" data-action="click" data-fn="setNow">↺ now</button>
       </div>
       <div class="ctl time-ctl" data-ref="timeCtl">
@@ -155,9 +149,13 @@
       <header class="sec-head">
         <h2>Conditions</h2>
         <span class="sec-sub" data-if="cond.auto && cond.cloud !== null && cond.cloud !== undefined">auto · {{cond.cloud}}% cloud</span>
-        <span class="sec-sub" data-if="!cond.auto">manual</span>
+        <span class="sec-sub" data-if="!cond.auto">{{cond.icon}} manual</span>
       </header>
-      <div class="chips" role="group" aria-label="Weather conditions">
+      <button type="button" class="more-toggle" data-action="click" data-fn="toggleCond" :aria-expanded="condOpen">
+        <span data-if="!condOpen">Override the forecast ▾</span>
+        <span data-if="condOpen">Hide ▴</span>
+      </button>
+      <div class="chips" role="group" aria-label="Weather conditions" data-if="condOpen">
         <button type="button" class="chip" :class="{active: wxOverride === -1}" data-action="click" data-fn="setCond" data-value="-1">Auto</button>
         <button type="button" class="chip" :class="{active: wxOverride === 0}" data-action="click" data-fn="setCond" data-value="0">☀️ Clear</button>
         <button type="button" class="chip" :class="{active: wxOverride === 1}" data-action="click" data-fn="setCond" data-value="1">🌤️ Partly</button>
@@ -264,7 +262,7 @@
     </section>
 
     <!-- Presets -->
-    <section class="presets-sec" data-if="mode === 'day'">
+    <section class="presets-sec" data-if="mode === 'day' && lightTab === 'manual'">
       <header class="sec-head"><h2>Look</h2></header>
       <div class="presets">
         <button type="button" class="preset" :class="{active: preset === 'bokeh'}" data-action="click" data-fn="presetBokeh">
@@ -279,7 +277,7 @@
     </section>
 
     <!-- Sliders -->
-    <section class="sliders" data-if="mode === 'day'">
+    <section class="sliders" data-if="mode === 'day' && lightTab === 'manual'">
       <div class="ctl">
         <div class="ctl-head">
           <label for="aperture">Aperture</label>
@@ -288,6 +286,15 @@
         <input id="aperture" type="range" min="0" max="25" step="1"
           data-model="apertureIdx.number" data-action="input" data-fn="unpreset">
         <div class="ctl-scale"><span>f/1.2 · blurry</span><span>f/22 · sharp</span></div>
+      </div>
+      <div class="ctl">
+        <div class="ctl-head">
+          <label for="shutter">Shutter</label>
+          <span class="ctl-val">{{exposure.shutter}}</span>
+        </div>
+        <input id="shutter" type="range" min="0" max="54" step="1"
+          data-model="shutterIdx.number" data-action="input" data-fn="applyShutter">
+        <div class="ctl-scale"><span>30s · blurred</span><span>1/8000 · frozen</span></div>
       </div>
       <div class="ctl">
         <div class="ctl-head">
@@ -314,7 +321,7 @@
     </section>
 
     <!-- Depth of field -->
-    <section class="dof-sec" data-if="mode === 'day' && moreOpen">
+    <section class="dof-sec" data-if="mode === 'day' && lightTab === 'manual' && moreOpen">
       <header class="sec-head">
         <h2>Focus &amp; depth</h2>
         <span class="sec-sub">full-frame · CoC 0.03mm</span>
@@ -348,7 +355,7 @@
     </section>
 
     <!-- Bokeh preview -->
-    <section class="preview" data-if="mode === 'day'" data-ref="stage" aria-label="Bokeh preview">
+    <section class="preview" data-if="mode === 'day' && lightTab === 'manual'" data-ref="stage" aria-label="Bokeh preview">
       <div class="scene" aria-hidden="true">
         <div class="lights">
           <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>

@@ -2,9 +2,9 @@ import spektrum, {
   setValue, defineFn, watch, bindDOM, run, appState, computed, addAsync,
 } from 'spektrum';
 import {
-  F_STOPS, ISOS, CONDITIONS,
+  F_STOPS, ISOS, SHUTTERS, CONDITIONS,
   sunElevation, sceneEV, conditionFromWeather,
-  shutterSeconds, snapShutter, pickIso,
+  shutterSeconds, snapShutter, pickIso, isoForShutter,
   bokehScore, bokehLabel, sunPhase,
   localParts, utcMsAt, fmtTime, parseQuery,
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
@@ -173,6 +173,7 @@ setValue('dayIndex', 0);
 setValue('timeMinutes', nowMinutes(browserOffsetSec()));
 setValue('apertureIdx', F_STOPS.indexOf(1.8));
 setValue('isoIdx', 0);
+setValue('shutterIdx', 0); // corrected to match the real exposure right after boot
 setValue('wxOverride', -1); // -1 = auto (from forecast)
 setValue('preset', 'bokeh');
 setValue('geoStatus', 'idle');
@@ -194,6 +195,7 @@ setValue('lightTab', restoredUi.lightTab); // auto | photo | live | manual
 setValue('manualEV', restoredUi.manualEV);
 setValue('manualCls', restoredUi.manualCls);
 setValue('moreOpen', false); // ND + depth-of-field expander
+setValue('condOpen', false); // weather-override chips under the Conditions title
 setValue('locEdit', false); // location pill expanded into the search row
 // The metered override follows the restored light source: a photo's
 // stored EV on the photo tab, the manual dial on manual, else the model.
@@ -492,8 +494,6 @@ defineFn('searchCity', async () => {
   }
 });
 
-defineFn('selectDay', (_el, _state, _delta, value) => setValue('dayIndex', value));
-
 defineFn('setNow', () => {
   setValue('dayIndex', 0);
   setValue('timeMinutes', nowMinutes(offsetSec()));
@@ -515,7 +515,25 @@ defineFn('unpreset', () => {
   if (appState.preset !== 'custom') setValue('preset', 'custom');
 });
 
+/**
+ * Shutter is the third leg of the triangle: dragging it holds aperture
+ * (the "look") fixed and solves ISO to hit the target time, mirroring
+ * how the aperture/ISO sliders leave the other two legs alone. Reads
+ * the slider element directly — action listeners fire before the
+ * data-model commit (see applyManualEV).
+ */
+defineFn('applyShutter', (el) => {
+  const idx = parseInt(el?.value, 10);
+  if (!Number.isFinite(idx) || !SHUTTERS[idx]) return;
+  if (appState.preset !== 'custom') setValue('preset', 'custom');
+  const N = F_STOPS[appState.apertureIdx ?? 3] ?? 1.8;
+  const nd = appState.ndStops ?? 0;
+  setValue('isoIdx', ISOS.indexOf(isoForShutter(currentEV() - nd, N, SHUTTERS[idx].t)));
+});
+
 defineFn('setLp', (_el, _state, _delta, value) => setValue('lpOverride', value));
+
+defineFn('toggleCond', () => setValue('condOpen', !appState.condOpen));
 
 // --- Photo light check ---
 
@@ -935,6 +953,23 @@ const paintStreak = () => {
 };
 watch(['exposure'], paintStreak);
 
+// The shutter slider's own position is a mirror, not a source of truth —
+// aperture × ISO × light always determine the real exposure.t. Keep it
+// snapped to whatever that settles on, including right after a direct
+// shutter drag once the solved ISO lands on its nearest full stop.
+const syncShutterIdx = () => {
+  const t = appState.exposure?.t;
+  if (t == null) return;
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < SHUTTERS.length; i++) {
+    const d = Math.abs(Math.log2(SHUTTERS[i].t / t));
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  if (appState.shutterIdx !== best) setValue('shutterIdx', best);
+};
+watch(['exposure'], syncShutterIdx);
+
 // Compass arrow for the Milky Way core's peak azimuth (up = north).
 const paintCore = () => {
   const el = spektrum.refs.coreArrow;
@@ -987,6 +1022,7 @@ paintMeter();
 paintStreak();
 paintDof();
 paintCore();
+syncShutterIdx();
 // Persist layout choices whenever they change (also covers boot defaults).
 watch(['mode', 'lightTab', 'manualEV', 'manualCls'], saveUi);
 restoreScenePreview(restoredScene);

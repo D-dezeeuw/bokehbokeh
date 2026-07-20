@@ -279,26 +279,8 @@ body {
 .when-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-bottom: 12px;
-}
-.day-tabs { display: flex; gap: 8px; }
-.day-tab {
-  padding: 7px 16px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-dim);
-  font: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-}
-.day-tab.active {
-  color: #1a0e02;
-  background: linear-gradient(135deg, var(--gold) 0%, var(--amber) 100%);
-  border-color: transparent;
-  font-weight: 700;
 }
 .now-btn {
   padding: 7px 12px;

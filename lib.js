@@ -136,6 +136,22 @@ export const pickIso = (ev100, N, maxT = 1 / 60) => {
   return ISOS.at(-1);
 };
 
+/**
+ * Nearest standard ISO (by stop distance) that hits a target shutter
+ * time at aperture N and scene EV100 — the inverse of shutterSeconds,
+ * for when the shutter speed itself is the dial being turned.
+ */
+export const isoForShutter = (ev100, N, t) => {
+  const target = (N * N * 100) / (Math.pow(2, ev100) * t);
+  let best = ISOS[0];
+  let bestD = Infinity;
+  for (const iso of ISOS) {
+    const d = Math.abs(Math.log2(iso / target));
+    if (d < bestD) { bestD = d; best = iso; }
+  }
+  return best;
+};
+
 /** 0 (everything sharp, f/22) → 100 (max background blur, f/1.2). */
 export const bokehScore = (N) =>
   Math.round((100 * Math.log2(F_STOPS.at(-1) / N)) / Math.log2(F_STOPS.at(-1) / F_STOPS[0]));
