@@ -25,21 +25,29 @@
 
   <main class="card" data-cloak data-ref="card">
     <header class="hero">
-      <h1>Bokeh<span>Bokeh</span></h1>
-      <p class="tag">the right settings for your light, instantly.</p>
+      <div class="hero-row">
+        <h1>Bokeh<span>Bokeh</span></h1>
+        <button type="button" class="mode-toggle" data-action="click" data-fn="toggleMode"
+          :aria-pressed="mode === 'night'" aria-label="Toggle night sky mode">
+          <span data-if="mode === 'day'">🌌</span>
+          <span data-if="mode === 'night'">☀️</span>
+        </button>
+      </div>
+      <p class="tag" data-if="mode === 'day'">the right settings for your light, instantly.</p>
+      <p class="tag" data-if="mode === 'night'">tonight's sky, and how to shoot it.</p>
     </header>
 
-    <nav class="level-pills" aria-label="Interface level">
-      <button type="button" class="pill" :class="{active: uiLevel === 0}"
-        :aria-pressed="uiLevel === 0" data-action="click" data-fn="setLevel" data-value="0">Basic</button>
-      <button type="button" class="pill" :class="{active: uiLevel === 1}"
-        :aria-pressed="uiLevel === 1" data-action="click" data-fn="setLevel" data-value="1">Advanced</button>
-      <button type="button" class="pill" :class="{active: uiLevel === 2}"
-        :aria-pressed="uiLevel === 2" data-action="click" data-fn="setLevel" data-value="2">Expert</button>
-    </nav>
-
-    <!-- Location -->
-    <div class="loc-bar">
+    <!-- Location: compact pill; tap to edit -->
+    <button type="button" class="loc-pill" data-if="place.name && !locEdit"
+      data-action="click" data-fn="toggleLocEdit" aria-label="Change location">
+      <span class="loc-pill-name">📍 {{place.name}}<span class="country" data-if="place.country">, {{place.country}}</span></span>
+      <span class="loc-pill-wx">
+        <span data-if="cond.temp !== null && cond.temp !== undefined">{{cond.temp}}°</span>
+        <span>{{cond.icon}}</span>
+      </span>
+      <span class="loc-pill-edit">✎</span>
+    </button>
+    <div class="loc-bar" data-if="locEdit || !place.name">
       <button
         type="button"
         class="geo-btn"
@@ -68,17 +76,6 @@
     <p class="geo-note" data-if="geoStatus === 'denied'">Location denied — search for a city instead.</p>
     <p class="geo-note" data-if="searchError">{{searchError}}</p>
 
-    <section class="location" data-if="place.name">
-      <div class="loc-text">
-        <h2>{{place.name}}<span class="country" data-if="place.country">, {{place.country}}</span></h2>
-        <p class="date">{{dateLabel}} · {{timeLabel}}</p>
-      </div>
-      <div class="loc-wx">
-        <span class="loc-icon">{{cond.icon}}</span>
-        <span class="loc-temp" data-if="cond.temp !== null && cond.temp !== undefined">{{cond.temp}}°</span>
-      </div>
-    </section>
-
     <div class="error" data-if="wxError">
       <span class="error-msg">No weather data — pick conditions manually below.</span>
       <button type="button" class="retry-btn" data-action="click" data-fn="retryWx" :disabled="wxLoading">
@@ -87,8 +84,53 @@
       </button>
     </div>
 
+    <!-- Shared light meter: whatever source feeds it, the needle shows it -->
+    <div class="meter-wrap" aria-label="Light meter" data-if="mode === 'day'">
+      <svg class="meter" viewBox="0 0 200 114" role="img">
+        <path class="band" d="M 17.28 89.41 A 84 84 0 0 1 60.56 29.83" stroke="#5b48b7" />
+        <path class="band" d="M 60.56 29.83 A 84 84 0 0 1 94.14 20.21" stroke="#a3742c" />
+        <path class="band" d="M 94.14 20.21 A 84 84 0 0 1 128.73 25.07" stroke="#4f8f52" />
+        <path class="band" d="M 128.73 25.07 A 84 84 0 0 1 158.35 43.58" stroke="#8fa3b8" />
+        <path class="band" d="M 158.35 43.58 A 84 84 0 0 1 182.72 89.41" stroke="#f5b93b" />
+        <text x="49.03" y="66.97" class="m-emoji">🕯️</text>
+        <text x="82.63" y="43.44" class="m-emoji">💡</text>
+        <text x="108.77" y="41.61" class="m-emoji">🌳</text>
+        <text x="133.38" y="50.57" class="m-emoji">⛅</text>
+        <text x="155.63" y="74.42" class="m-emoji">☀️</text>
+        <text x="15.51" y="62.79" class="m-tick">0</text>
+        <text x="50.19" y="24.28" class="m-tick">4</text>
+        <text x="100" y="10" class="m-tick">8</text>
+        <text x="149.81" y="24.28" class="m-tick">12</text>
+        <text x="184.49" y="62.79" class="m-tick">16</text>
+        <g class="meter-needle" data-ref="meterNeedle">
+          <line x1="100" y1="112" x2="100" y2="30" />
+          <circle cx="100" cy="104" r="5.5" />
+        </g>
+      </svg>
+      <div class="meter-read" data-if="exposure">
+        <span class="meter-ev" data-if="!live">EV {{exposure.ev}}</span>
+        <span class="meter-ev" data-if="live">EV {{live.ev}}</span>
+        <span class="meter-src" data-if="live">🎥 live camera</span>
+        <span class="meter-src" data-if="!live && meteredEV !== null && lightTab === 'manual'">✋ set by you</span>
+        <span class="meter-src" data-if="!live && meteredEV !== null && lightTab !== 'manual'">📸 from your photo</span>
+        <span class="meter-src" data-if="!live && meteredEV === null">from sun &amp; weather</span>
+      </div>
+    </div>
+
+    <!-- Light source tabs -->
+    <nav class="light-tabs" data-if="mode === 'day'" aria-label="Light source">
+      <button type="button" class="ltab" :class="{active: lightTab === 'auto'}"
+        :aria-pressed="lightTab === 'auto'" data-action="click" data-fn="setTab" data-value="auto">📍 Here &amp; now</button>
+      <button type="button" class="ltab" :class="{active: lightTab === 'photo'}"
+        :aria-pressed="lightTab === 'photo'" data-action="click" data-fn="setTab" data-value="photo">📸 Photo</button>
+      <button type="button" class="ltab" :class="{active: lightTab === 'live'}"
+        :aria-pressed="lightTab === 'live'" data-action="click" data-fn="setTab" data-value="live">🎥 Live</button>
+      <button type="button" class="ltab" :class="{active: lightTab === 'manual'}"
+        :aria-pressed="lightTab === 'manual'" data-action="click" data-fn="setTab" data-value="manual">✋ Manual</button>
+    </nav>
+
     <!-- Time -->
-    <section class="when">
+    <section class="when" data-if="mode === 'day' && lightTab === 'auto'">
       <div class="when-head">
         <nav class="day-tabs" aria-label="Day selector">
           <button type="button" class="day-tab" :class="{active: dayIndex === 0}"
@@ -109,7 +151,7 @@
     </section>
 
     <!-- Weather conditions -->
-    <section class="conditions adv">
+    <section class="conditions" data-if="mode === 'day' && lightTab === 'auto'">
       <header class="sec-head">
         <h2>Conditions</h2>
         <span class="sec-sub" data-if="cond.auto && cond.cloud !== null && cond.cloud !== undefined">auto · {{cond.cloud}}% cloud</span>
@@ -127,61 +169,63 @@
     </section>
 
     <!-- Photo light check -->
-    <section class="scene-sec adv">
+    <!-- Photo panel -->
+    <section class="scene-sec" data-if="mode === 'day' && lightTab === 'photo'">
       <header class="sec-head">
-        <h2>Light check</h2>
+        <h2>Photo check</h2>
         <span class="sec-sub" data-if="sceneView && sceneView.exif">measured · EXIF + render</span>
         <span class="sec-sub" data-if="sceneView && !sceneView.exif">estimated from photo look</span>
       </header>
-      <div class="meter-wrap" aria-label="Light meter">
-        <svg class="meter" viewBox="0 0 200 114" role="img">
-          <!-- EV arc, one band per scene class -->
-          <path class="band" d="M 17.28 89.41 A 84 84 0 0 1 60.56 29.83" stroke="#5b48b7" />
-          <path class="band" d="M 60.56 29.83 A 84 84 0 0 1 94.14 20.21" stroke="#a3742c" />
-          <path class="band" d="M 94.14 20.21 A 84 84 0 0 1 128.73 25.07" stroke="#4f8f52" />
-          <path class="band" d="M 128.73 25.07 A 84 84 0 0 1 158.35 43.58" stroke="#8fa3b8" />
-          <path class="band" d="M 158.35 43.58 A 84 84 0 0 1 182.72 89.41" stroke="#f5b93b" />
-          <!-- scene markers along the dial -->
-          <text x="49.03" y="66.97" class="m-emoji">🕯️</text>
-          <text x="82.63" y="43.44" class="m-emoji">💡</text>
-          <text x="108.77" y="41.61" class="m-emoji">🌳</text>
-          <text x="133.38" y="50.57" class="m-emoji">⛅</text>
-          <text x="155.63" y="74.42" class="m-emoji">☀️</text>
-          <!-- EV ticks -->
-          <text x="15.51" y="62.79" class="m-tick">0</text>
-          <text x="50.19" y="24.28" class="m-tick">4</text>
-          <text x="100" y="10" class="m-tick">8</text>
-          <text x="149.81" y="24.28" class="m-tick">12</text>
-          <text x="184.49" y="62.79" class="m-tick">16</text>
-          <!-- needle -->
-          <g class="meter-needle" data-ref="meterNeedle">
-            <line x1="100" y1="112" x2="100" y2="30" />
-            <circle cx="100" cy="104" r="5.5" />
-          </g>
-        </svg>
-        <div class="meter-read" data-if="exposure">
-          <span class="meter-ev" data-if="!live">EV {{exposure.ev}}</span>
-          <span class="meter-ev" data-if="live">EV {{live.ev}}</span>
-          <span class="meter-src" data-if="live">🎥 live camera</span>
-          <span class="meter-src" data-if="!live && meteredEV !== null">📸 from your photo</span>
-          <span class="meter-src" data-if="!live && meteredEV === null">from sun &amp; weather</span>
-        </div>
-      </div>
-
       <input id="photoInput" class="file-input" type="file" accept="image/*"
         data-action="change" data-fn="analyzePhoto" aria-label="Analyze a photo">
-      <div class="capture-row" data-if="!sceneView && !live">
-        <label class="upload-btn" for="photoInput">
-          <span class="upload-main">📸 From a photo</span>
-          <span class="upload-sub">snap or pick one — analyzed on your device, never uploaded</span>
-        </label>
-        <button type="button" class="upload-btn" data-action="click" data-fn="startLive">
-          <span class="upload-main">🎥 Live meter</span>
-          <span class="upload-sub">point the camera — metered in real time, nothing recorded</span>
-        </button>
-      </div>
+      <label class="upload-btn" for="photoInput" data-if="!sceneView">
+        <span class="upload-main">📸 Check the light from a photo</span>
+        <span class="upload-sub">snap or pick one — analyzed on your device, never uploaded</span>
+      </label>
       <p class="geo-note" data-if="sceneError">{{sceneError}}</p>
 
+      <div class="scene-card" data-if="sceneView">
+        <canvas class="scene-thumb" data-ref="sceneThumb" width="96" height="96"></canvas>
+        <div class="scene-info">
+          <span class="scene-label">{{sceneView.icon}} {{sceneView.label}}</span>
+          <span class="scene-ev">EV {{sceneView.ev}}<span data-if="!sceneView.exif"> (approx.)</span></span>
+          <div class="scene-stats">
+            <span class="stat" data-if="sceneView.exif">camera EV {{sceneView.rawEv}}</span>
+            <span class="stat" data-if="sceneView.exif && sceneView.renderLabel !== '+0'">render {{sceneView.renderLabel}} EV</span>
+            <span class="stat">brightness {{sceneView.mean}}/255</span>
+            <span class="stat">contrast {{sceneView.contrast}}</span>
+            <span class="stat">warmth {{sceneView.warmth}}</span>
+            <span class="stat" data-if="sceneView.clipHi > 1">{{sceneView.clipHi}}% blown</span>
+          </div>
+        </div>
+        <button type="button" class="scene-clear" data-action="click" data-fn="clearScene" aria-label="Clear photo">✕</button>
+      </div>
+      <canvas class="scene-hist" data-ref="sceneHist" data-if="sceneView" width="320" height="44" aria-label="Luminance histogram"></canvas>
+      <div class="chips" role="group" aria-label="Scene type" data-if="sceneView">
+        <button type="button" class="chip" :class="{active: scene.cls === 0}" data-action="click" data-fn="setScene" data-value="0">☀️ Sun</button>
+        <button type="button" class="chip" :class="{active: scene.cls === 1}" data-action="click" data-fn="setScene" data-value="1">⛅ Overcast</button>
+        <button type="button" class="chip" :class="{active: scene.cls === 2}" data-action="click" data-fn="setScene" data-value="2">🌳 Shade</button>
+        <button type="button" class="chip" :class="{active: scene.cls === 3}" data-action="click" data-fn="setScene" data-value="3">💡 Indoors</button>
+        <button type="button" class="chip" :class="{active: scene.cls === 4}" data-action="click" data-fn="setScene" data-value="4">🕯️ Dim</button>
+      </div>
+      <p class="scene-tip" data-if="sceneView">💡 {{sceneView.tip}}</p>
+      <div class="again-row" data-if="sceneView">
+        <label class="upload-again" for="photoInput">📸 check another photo</label>
+      </div>
+    </section>
+
+    <!-- Live viewfinder panel -->
+    <section class="scene-sec" data-if="mode === 'day' && lightTab === 'live'">
+      <header class="sec-head">
+        <h2>Live meter</h2>
+        <span class="sec-sub" data-if="live && live.measured">measured from the sensor</span>
+        <span class="sec-sub" data-if="live && !live.measured">estimated from the view</span>
+      </header>
+      <button type="button" class="upload-btn" data-if="!live" data-action="click" data-fn="startLive">
+        <span class="upload-main">🎥 Start the live meter</span>
+        <span class="upload-sub">point the camera — metered in real time, nothing recorded</span>
+      </button>
+      <p class="geo-note" data-if="sceneError">{{sceneError}}</p>
       <div class="live-card" data-if="live">
         <video class="live-video" data-ref="liveVideo" playsinline muted autoplay></video>
         <div class="scene-info">
@@ -193,40 +237,34 @@
           </div>
         </div>
       </div>
+    </section>
 
-      <div class="scene-card" data-if="sceneView">
-        <canvas class="scene-thumb" data-ref="sceneThumb" width="96" height="96"></canvas>
-        <div class="scene-info">
-          <span class="scene-label">{{sceneView.icon}} {{sceneView.label}}</span>
-          <span class="scene-ev">EV {{sceneView.ev}}<span data-if="!sceneView.exif"> (approx.)</span></span>
-          <div class="scene-stats exp">
-            <span class="stat" data-if="sceneView.exif">camera EV {{sceneView.rawEv}}</span>
-            <span class="stat" data-if="sceneView.exif && sceneView.renderLabel !== '+0'">render {{sceneView.renderLabel}} EV</span>
-            <span class="stat">brightness {{sceneView.mean}}/255</span>
-            <span class="stat">contrast {{sceneView.contrast}}</span>
-            <span class="stat">warmth {{sceneView.warmth}}</span>
-            <span class="stat" data-if="sceneView.clipHi > 1">{{sceneView.clipHi}}% blown</span>
-          </div>
+    <!-- Manual light panel -->
+    <section class="scene-sec manual-sec" data-if="mode === 'day' && lightTab === 'manual'">
+      <header class="sec-head">
+        <h2>Set the light</h2>
+        <span class="sec-sub">your call</span>
+      </header>
+      <div class="chips" role="group" aria-label="Scene type">
+        <button type="button" class="chip" :class="{active: manualCls === 0}" data-action="click" data-fn="setManualScene" data-value="0">☀️ Sun</button>
+        <button type="button" class="chip" :class="{active: manualCls === 1}" data-action="click" data-fn="setManualScene" data-value="1">⛅ Overcast</button>
+        <button type="button" class="chip" :class="{active: manualCls === 2}" data-action="click" data-fn="setManualScene" data-value="2">🌳 Shade</button>
+        <button type="button" class="chip" :class="{active: manualCls === 3}" data-action="click" data-fn="setManualScene" data-value="3">💡 Indoors</button>
+        <button type="button" class="chip" :class="{active: manualCls === 4}" data-action="click" data-fn="setManualScene" data-value="4">🕯️ Dim</button>
+      </div>
+      <div class="ctl">
+        <div class="ctl-head">
+          <label for="manualEv">Fine-tune the light</label>
+          <span class="ctl-val">EV {{manualEV}}</span>
         </div>
-        <button type="button" class="scene-clear" data-action="click" data-fn="clearScene" aria-label="Clear photo">✕</button>
-      </div>
-      <canvas class="scene-hist exp" data-ref="sceneHist" data-if="sceneView" width="320" height="44" aria-label="Luminance histogram"></canvas>
-      <div class="chips" role="group" aria-label="Scene type" data-if="sceneView">
-        <button type="button" class="chip" :class="{active: scene.cls === 0}" data-action="click" data-fn="setScene" data-value="0">☀️ Sun</button>
-        <button type="button" class="chip" :class="{active: scene.cls === 1}" data-action="click" data-fn="setScene" data-value="1">⛅ Overcast</button>
-        <button type="button" class="chip" :class="{active: scene.cls === 2}" data-action="click" data-fn="setScene" data-value="2">🌳 Shade</button>
-        <button type="button" class="chip" :class="{active: scene.cls === 3}" data-action="click" data-fn="setScene" data-value="3">💡 Indoors</button>
-        <button type="button" class="chip" :class="{active: scene.cls === 4}" data-action="click" data-fn="setScene" data-value="4">🕯️ Dim</button>
-      </div>
-      <p class="scene-tip" data-if="sceneView">💡 {{sceneView.tip}}</p>
-      <div class="again-row" data-if="sceneView && !live">
-        <label class="upload-again" for="photoInput">📸 check another photo</label>
-        <button type="button" class="upload-again" data-action="click" data-fn="startLive">🎥 go live</button>
+        <input id="manualEv" type="range" min="-2" max="18" step="0.5"
+          data-model="manualEV.number" data-action="input" data-fn="applyManualEV">
+        <div class="ctl-scale"><span>🕯️ candlelight</span><span>☀️ blazing sun</span></div>
       </div>
     </section>
 
     <!-- Presets -->
-    <section class="presets-sec">
+    <section class="presets-sec" data-if="mode === 'day'">
       <header class="sec-head"><h2>Look</h2></header>
       <div class="presets">
         <button type="button" class="preset" :class="{active: preset === 'bokeh'}" data-action="click" data-fn="presetBokeh">
@@ -241,7 +279,7 @@
     </section>
 
     <!-- Sliders -->
-    <section class="sliders adv">
+    <section class="sliders" data-if="mode === 'day'">
       <div class="ctl">
         <div class="ctl-head">
           <label for="aperture">Aperture</label>
@@ -260,7 +298,11 @@
           data-model="isoIdx.number" data-action="input" data-fn="unpreset">
         <div class="ctl-scale"><span>100 · clean</span><span>12800 · noisy</span></div>
       </div>
-      <div class="nd-row">
+      <button type="button" class="more-toggle" data-action="click" data-fn="toggleMore" :aria-expanded="moreOpen">
+        <span data-if="!moreOpen">More · ND filter &amp; depth of field ▾</span>
+        <span data-if="moreOpen">Less ▴</span>
+      </button>
+      <div class="nd-row" data-if="moreOpen">
         <span class="nd-label">🕶️ ND filter</span>
         <div class="chips" role="group" aria-label="Neutral density filter">
           <button type="button" class="chip" :class="{active: ndStops === 0}" data-action="click" data-fn="setNd" data-value="0">None</button>
@@ -272,7 +314,7 @@
     </section>
 
     <!-- Depth of field -->
-    <section class="dof-sec adv">
+    <section class="dof-sec" data-if="mode === 'day' && moreOpen">
       <header class="sec-head">
         <h2>Focus &amp; depth</h2>
         <span class="sec-sub">full-frame · CoC 0.03mm</span>
@@ -306,7 +348,7 @@
     </section>
 
     <!-- Bokeh preview -->
-    <section class="preview" data-ref="stage" aria-label="Bokeh preview">
+    <section class="preview" data-if="mode === 'day'" data-ref="stage" aria-label="Bokeh preview">
       <div class="scene" aria-hidden="true">
         <div class="lights">
           <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
@@ -322,7 +364,7 @@
     </section>
 
     <!-- Night sky / astro -->
-    <section class="astro exp" data-if="astro">
+    <section class="astro" data-if="mode === 'night' && astro">
       <header class="sec-head">
         <h2>Night sky</h2>
         <span class="sec-sub" data-if="lp.auto && lp.known">auto · LP atlas 2024</span>
@@ -357,20 +399,6 @@
       </div>
 
       <div class="astro-result">
-        <div class="res-main">
-          <div class="res-item">
-            <span class="res-label">Shutter</span>
-            <span class="res-value">{{astro.shutter}}</span>
-          </div>
-          <div class="res-item">
-            <span class="res-label">Aperture</span>
-            <span class="res-value">f/{{astro.N}}</span>
-          </div>
-          <div class="res-item">
-            <span class="res-label">ISO</span>
-            <span class="res-value">{{astro.iso}}</span>
-          </div>
-        </div>
         <p class="astro-line">🌠 {{astro.darkLine}} · {{astro.moonIcon}} moon {{astro.moonIllum}}%</p>
         <p class="astro-line core-line">🌌 <span class="core-arrow" data-ref="coreArrow" aria-hidden="true">➤</span> {{astro.coreLine}}</p>
         <p class="res-note" data-if="astro.note">⚠️ {{astro.note}}</p>
@@ -382,9 +410,9 @@
 
   <!-- Fixed answer bar: the app's output, always in reach. Outside the
        card — its backdrop-filter would trap position:fixed descendants. -->
-  <div class="answer-wrap" data-if="exposure">
+  <div class="answer-wrap" data-if="(mode === 'day' && exposure) || (mode === 'night' && astro)">
     <div class="answer-sheet" data-if="sheetOpen">
-      <p class="sheet-light">
+      <p class="sheet-light" data-if="mode === 'day'">
         <span>{{sun.phaseIcon}} {{sun.phase}}</span>
         <span class="res-sep">·</span>
         <span>sun {{sun.elev}}°</span>
@@ -393,20 +421,33 @@
         <span class="res-metered" data-if="meteredEV !== null">📸 metered</span>
         <span class="res-nd" data-if="exposure.nd > 0">🕶️ ND −{{exposure.nd}} EV</span>
       </p>
-      <p class="sheet-note" data-if="exposure.warning">⚠️ {{exposure.warning}}</p>
-      <p class="sheet-note sheet-ok" data-if="!exposure.warning">Settings look good — go shoot.</p>
-      <button type="button" class="timer-btn" data-if="exposure.t >= 1 && !timer"
+      <p class="sheet-note" data-if="mode === 'day' && exposure.warning">⚠️ {{exposure.warning}}</p>
+      <p class="sheet-note sheet-ok" data-if="mode === 'day' && !exposure.warning">Settings look good — go shoot.</p>
+      <button type="button" class="timer-btn" data-if="mode === 'day' && exposure.t >= 1 && !timer"
         data-action="click" data-fn="startTimer">⏱ Time this {{exposure.shutter}} exposure</button>
+      <p class="sheet-light" data-if="mode === 'night'">
+        <span>🌠 {{astro.darkLine}}</span>
+        <span class="res-sep">·</span>
+        <span>{{astro.moonIcon}} moon {{astro.moonIllum}}%</span>
+      </p>
+      <p class="sheet-note" data-if="mode === 'night' && astro.note">⚠️ {{astro.note}}</p>
+      <p class="sheet-note sheet-ok" data-if="mode === 'night' && !astro.note">Sky looks good — go find the stars.</p>
     </div>
     <button type="button" class="answer-bar" data-action="click" data-fn="toggleSheet"
       :aria-expanded="sheetOpen" aria-label="Exposure settings — tap for details">
-      <span class="ab-badge" data-if="live">🎥</span>
-      <span class="ab-badge" data-if="!live && meteredEV !== null">📸</span>
-      <span class="ab-badge" data-if="!live && meteredEV === null">🌞</span>
-      <span class="ab-set">
+      <span class="ab-badge" data-if="mode === 'night'">🌌</span>
+      <span class="ab-badge" data-if="mode === 'day' && live">🎥</span>
+      <span class="ab-badge" data-if="mode === 'day' && !live && meteredEV !== null && lightTab === 'manual'">✋</span>
+      <span class="ab-badge" data-if="mode === 'day' && !live && meteredEV !== null && lightTab !== 'manual'">📸</span>
+      <span class="ab-badge" data-if="mode === 'day' && !live && meteredEV === null">🌞</span>
+      <span class="ab-set" data-if="mode === 'day'">
         <b>{{exposure.shutter}}</b><i>·</i><b>f/{{exposure.N}}</b><i>·</i><b>ISO {{exposure.iso}}</b>
       </span>
-      <span class="ab-warn" data-if="exposure.warning">⚠️</span>
+      <span class="ab-set" data-if="mode === 'night'">
+        <b>{{astro.shutter}}</b><i>·</i><b>f/{{astro.N}}</b><i>·</i><b>ISO {{astro.iso}}</b>
+      </span>
+      <span class="ab-warn" data-if="mode === 'day' && exposure.warning">⚠️</span>
+      <span class="ab-warn" data-if="mode === 'night' && astro.note">⚠️</span>
       <span class="ab-chevron" data-if="!sheetOpen">▴</span>
       <span class="ab-chevron" data-if="sheetOpen">▾</span>
     </button>
