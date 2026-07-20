@@ -911,3 +911,8 @@ refreshLp(); // restored place doesn't fire the place watch
 // First visit: ask the browser for a location. Return visits reuse the
 // saved place (the 📍 button re-asks at any time).
 if (!restored) tryGeolocate();
+
+// Installable offline field mode.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
