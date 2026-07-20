@@ -22,8 +22,11 @@ sliders and one-tap presets for maximum or minimum bokeh.
    high-ISO noise. While a preset is active, ISO re-solves automatically as
    you scrub through the day.
 5. **Light check** — an analog light-meter dial (candle → blazing sun)
-   whose needle follows the active scene EV: the sun/weather model by
-   default, or your photo. Snap or pick one (analyzed entirely on-device,
+   whose needle follows the active scene EV: the sun/weather model, your
+   photo, or the **live viewfinder** — point the camera and it meters in
+   real time (on Android the sensor's true exposure settings are read;
+   elsewhere it estimates from the look), with one tap freezing the
+   reading into the solver. Or snap/pick a photo (analyzed entirely on-device,
    never uploaded). EXIF tells which exposure the camera applied; the
    pixels tell how bright the frame actually rendered — combining both
    gives the true scene EV (a dark-rendered dim room reads darker than

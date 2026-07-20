@@ -455,6 +455,19 @@ export const classifyScene = (m, ev = null) => {
 };
 
 /**
+ * Scene EV implied by a live camera track's reported exposure settings
+ * (MediaStreamTrack.getSettings() on supporting devices — mostly Android
+ * Chrome). The spec puts exposureTime in 100 µs units, but some
+ * implementations report seconds; values ≤ 1 are treated as seconds.
+ * Phone apertures aren't exposed, so assume a typical f/1.8 main camera.
+ */
+export const trackEV = ({ exposureTime, iso } = {}, N = 1.8) => {
+  if (!exposureTime || !iso) return null;
+  const t = exposureTime > 1 ? exposureTime / 10000 : exposureTime;
+  return Math.round(Math.log2((N * N) / (t * (iso / 100))) * 10) / 10;
+};
+
+/**
  * Needle angle (degrees, 0 = straight up) for the analog light meter:
  * EV −2 (candle) at −80° through EV 18 (blazing sun) at +80°.
  */

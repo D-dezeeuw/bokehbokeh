@@ -9,7 +9,7 @@ import {
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
-  meterAngle,
+  meterAngle, trackEV,
 } from '../lib.js';
 
 /** Build a solid-color ImageData-shaped object. */
@@ -304,6 +304,18 @@ test('classifyScene: pixel-heuristic fallback separates the obvious looks', () =
   assert.equal(classifyScene(indoor), 3);
   assert.equal(classifyScene(dim), 4);
   assert.equal(SCENES.length, 5);
+});
+
+test('trackEV converts camera track settings in either unit form', () => {
+  // 1/60 s @ ISO 100 f/1.8: EV = log2(3.24 × 60) ≈ 7.6
+  assert.ok(Math.abs(trackEV({ exposureTime: 1 / 60, iso: 100 }) - 7.6) < 0.1);
+  // same exposure in the spec's 100 µs units (1/60 s ≈ 166.7 units)
+  assert.ok(Math.abs(trackEV({ exposureTime: 166.7, iso: 100 }) - 7.6) < 0.1);
+  // dim room: 1/20 s @ ISO 800 → log2(3.24 / (0.05 × 8)) ≈ 3.0
+  assert.ok(Math.abs(trackEV({ exposureTime: 500, iso: 800 }) - 3) < 0.1);
+  assert.equal(trackEV({ exposureTime: 100 }), null);
+  assert.equal(trackEV({ iso: 100 }), null);
+  assert.equal(trackEV(), null);
 });
 
 test('meterAngle maps the EV range onto the dial and clamps the ends', () => {

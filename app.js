@@ -10,7 +10,7 @@ import {
   LP_ZONES, LP_CLASSES, classifyLpPixel, trailLimit, astroIso,
   moonPhase, darknessWindow,
   analyzePixels, parseExif, exifEV, exposureOffset, SCENES, classifyScene,
-  meterAngle,
+  meterAngle, trackEV,
 } from './lib.js';
 
 // === External services ===
@@ -163,6 +163,7 @@ const restoredScene = loadScene();
 setValue('scene', restoredScene); // photo light-check result survives refresh
 setValue('meteredEV', restoredScene?.ev ?? null);
 setValue('sceneError', '');
+setValue('live', null); // live viewfinder reading while the camera runs
 setValue('uiLevel', loadLevel()); // Basic / Advanced / Expert
 spektrum.tick();
 
@@ -285,6 +286,12 @@ computed('astro', ['lp', 'focal', 'place', 'wx.data', 'dayIndex'], (s) => {
     moonIllum: moon.illum,
     note: notes.join(' '),
   };
+});
+
+computed('liveView', ['live'], (s) => {
+  const lv = s.live;
+  if (!lv) return null;
+  return { ...SCENES[lv.cls], ev: lv.ev, measured: lv.measured };
 });
 
 computed('sceneView', ['scene'], (s) => {
@@ -422,16 +429,12 @@ defineFn('setLp', (_el, _state, _delta, value) => setValue('lpOverride', value))
 
 // --- Photo light check ---
 
-/** Paint the analyzed photo, center-cropped square, onto the thumb canvas. */
-const drawThumb = (img) => {
+/** Paint a frame source (image or video), center-cropped square, onto the thumb canvas. */
+const drawThumb = (src, sw, sh) => {
   const th = spektrum.refs.sceneThumb;
-  if (!th || !img) return;
-  const s = Math.min(img.naturalWidth, img.naturalHeight);
-  th.getContext('2d').drawImage(
-    img,
-    (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s,
-    0, 0, th.width, th.height,
-  );
+  if (!th || !src || !sw || !sh) return;
+  const s = Math.min(sw, sh);
+  th.getContext('2d').drawImage(src, (sw - s) / 2, (sh - s) / 2, s, s, 0, 0, th.width, th.height);
 };
 
 const drawHist = (hist) => {
@@ -456,7 +459,7 @@ const restoreScenePreview = (sc) => {
   if (!sc.thumb) return;
   const img = new Image();
   img.src = sc.thumb;
-  img.decode().then(() => drawThumb(img)).catch(() => {});
+  img.decode().then(() => drawThumb(img, img.naturalWidth, img.naturalHeight)).catch(() => {});
 };
 
 defineFn('analyzePhoto', async (el) => {
@@ -498,7 +501,7 @@ defineFn('analyzePhoto', async (el) => {
     }
     const cls = classifyScene(markers, ev);
     const scene = { cls, ev: ev ?? SCENES[cls].ev, exif: ev != null, rawEv, offset, markers };
-    drawThumb(img);
+    drawThumb(img, img.naturalWidth, img.naturalHeight);
     drawHist(markers.hist);
     URL.revokeObjectURL(url);
     // Persist the whole analysis (incl. the small thumb) so a refresh
@@ -537,6 +540,106 @@ defineFn('clearScene', () => {
 });
 
 defineFn('setLevel', (_el, _state, _delta, value) => setValue('uiLevel', value));
+
+// --- Live viewfinder meter ---
+
+let liveStream = null;
+let liveTimer = 0;
+let lastLiveMarkers = null;
+const liveCanvas = document.createElement('canvas');
+
+const stopLive = () => {
+  clearInterval(liveTimer);
+  liveTimer = 0;
+  liveStream?.getTracks().forEach((t) => t.stop());
+  liveStream = null;
+  lastLiveMarkers = null;
+  const video = spektrum.refs.liveVideo;
+  if (video) video.srcObject = null;
+  if (appState.live) setValue('live', null);
+};
+
+/** Sample the viewfinder ~2×/s through the same pipeline as photos. */
+const liveAnalyze = () => {
+  const video = spektrum.refs.liveVideo;
+  if (!video || !liveStream || video.readyState < 2 || !video.videoWidth) return;
+  const scale = 96 / Math.max(video.videoWidth, video.videoHeight);
+  const w = Math.max(1, Math.round(video.videoWidth * scale));
+  const h = Math.max(1, Math.round(video.videoHeight * scale));
+  liveCanvas.width = w;
+  liveCanvas.height = h;
+  const ctx = liveCanvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0, w, h);
+  const markers = analyzePixels(ctx.getImageData(0, 0, w, h));
+  lastLiveMarkers = markers;
+  // Android Chrome can report the sensor's actual exposure; combined with
+  // the rendered brightness that's a real meter. Elsewhere: look-based.
+  let ev = null;
+  let measured = false;
+  const raw = trackEV(liveStream.getVideoTracks()[0]?.getSettings?.() ?? {});
+  if (raw != null) {
+    ev = Math.round((raw + exposureOffset(markers.mean, markers.clipHi, markers.clipLo)) * 10) / 10;
+    measured = true;
+  }
+  const cls = classifyScene(markers, ev);
+  ev = ev ?? SCENES[cls].ev;
+  const prev = appState.live;
+  if (!prev || prev.ev !== ev || prev.cls !== cls) {
+    setValue('live', { ev, cls, measured });
+  }
+};
+
+defineFn('startLive', async () => {
+  setValue('sceneError', '');
+  stopLive();
+  try {
+    liveStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' },
+      audio: false,
+    });
+    const video = spektrum.refs.liveVideo;
+    video.srcObject = liveStream;
+    await video.play();
+    liveAnalyze();
+    if (!appState.live) setValue('live', { ev: appState.exposure?.ev ?? 12, cls: 1, measured: false });
+    liveTimer = setInterval(liveAnalyze, 500);
+  } catch {
+    stopLive();
+    setValue('sceneError', 'Camera unavailable — allow access, or use a photo instead.');
+  }
+});
+
+defineFn('stopLive', stopLive);
+
+/** Freeze the current viewfinder reading into the scene pipeline. */
+defineFn('useLiveReading', () => {
+  const lv = appState.live;
+  const video = spektrum.refs.liveVideo;
+  if (!lv || !lastLiveMarkers || !video) return;
+  const scene = {
+    cls: lv.cls,
+    ev: lv.ev,
+    exif: lv.measured,
+    rawEv: null,
+    offset: null,
+    markers: lastLiveMarkers,
+    live: true,
+  };
+  drawThumb(video, video.videoWidth, video.videoHeight);
+  drawHist(scene.markers.hist);
+  try { scene.thumb = spektrum.refs.sceneThumb?.toDataURL('image/jpeg', 0.72); } catch {}
+  stopLive();
+  setValue('scene', scene);
+  setValue('meteredEV', scene.ev);
+  saveScene(scene);
+  spektrum.tick();
+  autoSolve();
+});
+
+// The camera has no business running while hidden.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopLive();
+});
 
 defineFn('retryWx', () => refetchWx?.());
 
@@ -614,6 +717,7 @@ const paintLevel = () => {
     card.classList.remove('level-0', 'level-1', 'level-2');
     card.classList.add(`level-${lvl}`);
   }
+  if (lvl === 0) stopLive(); // Basic hides the viewfinder — release the camera
   try { localStorage.setItem(UI_KEY, String(lvl)); } catch {}
 };
 watch(['uiLevel'], paintLevel);
@@ -623,10 +727,10 @@ watch(['uiLevel'], paintLevel);
 const paintMeter = () => {
   const el = spektrum.refs.meterNeedle;
   if (!el) return;
-  const ev = appState.exposure?.ev;
+  const ev = appState.live?.ev ?? appState.exposure?.ev;
   el.style.transform = `rotate(${meterAngle(ev ?? -2)}deg)`;
 };
-watch(['exposure'], paintMeter);
+watch(['exposure', 'live'], paintMeter);
 
 // Sunrise/sunset shift the day-gradient on the time slider track.
 const paintSunTrack = () => {
