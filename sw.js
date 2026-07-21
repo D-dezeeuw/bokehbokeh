@@ -12,7 +12,7 @@
     visits are instant and updates still flow while online.
 */
 
-const VERSION = 'bokehbokeh-v2';
+const VERSION = 'bokehbokeh-v3';
 
 const SHELL = [
   './',
