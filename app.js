@@ -173,7 +173,7 @@ setValue('dayIndex', 0);
 setValue('timeMinutes', nowMinutes(browserOffsetSec()));
 setValue('apertureIdx', F_STOPS.indexOf(1.8));
 setValue('isoIdx', 0);
-setValue('shutterIdx', 0); // corrected to match the real exposure right after boot
+setValue('shutterIdx', 39); // 1/250 — a reasonable general-purpose starting point
 setValue('wxOverride', -1); // -1 = auto (from forecast)
 setValue('preset', 'bokeh');
 setValue('geoStatus', 'idle');
@@ -520,17 +520,19 @@ defineFn('unpreset', () => {
   if (appState.preset !== 'custom') setValue('preset', 'custom');
 });
 
-/** Set once per shutter drag so syncShutterIdx (below) knows the
- *  resulting exposure change came from the shutter slider itself and
- *  skips writing its "achieved" index back — otherwise ISO's coarse
- *  full-stop steps make the slider snap back mid-drag and feel stuck. */
-let shutterDrag = false;
-
 /**
  * Shutter is the third leg of the triangle: dragging it holds aperture
- * (the "look") fixed and solves ISO to hit the target time, mirroring
- * how the aperture/ISO sliders leave the other two legs alone. Reads
- * the slider element directly — action listeners fire before the
+ * (the "look") fixed and solves ISO to hit the target time. One-way,
+ * like aperture/ISO already are toward each other — aperture and ISO
+ * drags never rewrite one another's slider position, so shutter
+ * doesn't rewrite theirs (or its own) either. An earlier version tried
+ * to also mirror shutterIdx to the achieved exposure whenever aperture/
+ * ISO/light changed elsewhere, guarded by a flag to keep that from
+ * fighting the user's own drag — two things writing the same value
+ * with only event-ordering assumptions keeping them apart. Simpler and
+ * more robust to just not do the mirroring: the footer/sheet always
+ * show the real achieved shutter regardless of where this slider sits.
+ * Reads the slider element directly — action listeners fire before the
  * data-model commit (see applyManualEV).
  */
 defineFn('applyShutter', (el) => {
@@ -539,7 +541,6 @@ defineFn('applyShutter', (el) => {
   if (appState.preset !== 'custom') setValue('preset', 'custom');
   const N = F_STOPS[appState.apertureIdx ?? 3] ?? 1.8;
   const nd = appState.ndStops ?? 0;
-  shutterDrag = true;
   setValue('isoIdx', ISOS.indexOf(isoForShutter(currentEV() - nd, N, SHUTTERS[idx].t)));
 });
 
@@ -965,26 +966,6 @@ const paintStreak = () => {
 };
 watch(['exposure'], paintStreak);
 
-// The shutter slider's own position is a mirror, not a source of truth,
-// for any OTHER change (aperture/ISO drag, light source, ND) — aperture
-// × ISO × light determine the real exposure.t, and the slider should
-// snap to reflect it. A change the shutter drag itself caused is the
-// one exception: shutterDrag skips the write-back so the slider follows
-// the user's own gesture instead of fighting it (see applyShutter).
-const syncShutterIdx = () => {
-  if (shutterDrag) { shutterDrag = false; return; }
-  const t = appState.exposure?.t;
-  if (t == null) return;
-  let best = 0;
-  let bestD = Infinity;
-  for (let i = 0; i < SHUTTERS.length; i++) {
-    const d = Math.abs(Math.log2(SHUTTERS[i].t / t));
-    if (d < bestD) { bestD = d; best = i; }
-  }
-  if (appState.shutterIdx !== best) setValue('shutterIdx', best);
-};
-watch(['exposure'], syncShutterIdx);
-
 // Compass arrow for the Milky Way core's peak azimuth (up = north).
 const paintCore = () => {
   const el = spektrum.refs.coreArrow;
@@ -1037,7 +1018,6 @@ paintMeter();
 paintStreak();
 paintDof();
 paintCore();
-syncShutterIdx();
 // Persist layout choices whenever they change (also covers boot defaults).
 watch(['mode', 'lightTab', 'manualEV', 'manualCls'], saveUi);
 restoreScenePreview(restoredScene);
